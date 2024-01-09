@@ -1,0 +1,10 @@
+# Rust
+/target
+
+# IDEA
+**.iml
+**/.idea
+
+# Mac
+**.DS_Store
+**/__MACOSX
