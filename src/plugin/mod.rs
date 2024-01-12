@@ -1,3 +1,2 @@
 pub mod control;
-pub mod input;
-pub mod pause;
+pub mod loading;

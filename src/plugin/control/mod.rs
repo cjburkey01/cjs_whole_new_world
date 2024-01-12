@@ -1,9 +1,10 @@
-use super::{
-    input::{create_input_manager_bundle, PlyAction},
-    pause::PauseState,
-};
+pub mod input;
+pub mod pause;
+
 use bevy::{prelude::*, window::CursorGrabMode};
+use input::{create_input_manager_bundle, PlyAction};
 use leafwing_input_manager::prelude::*;
+use pause::PauseState;
 use std::f32::consts::PI;
 
 pub struct PlyControlPlugin;

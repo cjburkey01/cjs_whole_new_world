@@ -25,6 +25,8 @@ features = [
 bitvec = "1.0.1"
 bevy_egui = "0.24.0"
 leafwing-input-manager = "0.11.2"
+noise = "0.8.2"
+log = "0.4.20"
 
 [profile.dev]
 opt-level = 1

@@ -1,10 +1,10 @@
 mod plugin;
 mod voxel;
 
-use crate::voxel::{InChunkPos, Voxel};
+use crate::plugin::loading::ChunkLoader;
 use bevy::{
     log::{Level, LogPlugin},
-    pbr::wireframe::{Wireframe, WireframeConfig, WireframePlugin},
+    pbr::wireframe::{Wireframe, WireframePlugin},
     prelude::{shape::Cube, *},
     render::{
         render_resource::WgpuFeatures,
@@ -15,6 +15,7 @@ use bevy::{
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use std::f32::consts::PI;
+use voxel::world_noise::WorldNoiseSettings;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -46,23 +47,16 @@ fn main() {
         )
         .add_plugins(WireframePlugin)
         .add_plugins((
-            InputManagerPlugin::<input::PlyAction>::default(),
+            InputManagerPlugin::<control::input::PlyAction>::default(),
             control::PlyControlPlugin,
+            loading::ChunkLoadingPlugin,
         ))
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
             brightness: 0.3,
             ..default()
         })
-        .insert_resource(WireframeConfig {
-            // The global wireframe config enables drawing of wireframes on every mesh,
-            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
-            // regardless of the global configuration.
-            global: false,
-            // Controls the default color of all wireframes. Used as the default color for global wireframes.
-            // Can be changed per mesh using the `WireframeColor` component.
-            default_color: Color::WHITE,
-        })
+        .insert_resource(WorldNoiseSettings::new(42069))
         .add_systems(Startup, init_world)
         .run();
 }
@@ -71,21 +65,25 @@ fn init_world(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    world_noise: Res<WorldNoiseSettings>,
 ) {
     // Camera
-    commands.spawn(control::PlyCamBundle {
-        camera: Camera3dBundle {
-            projection: Projection::Perspective(PerspectiveProjection {
-                fov: 80.0 * PI / 180.0,
-                near: 0.01,
-                far: 1000.0,
+    commands.spawn((
+        control::PlyCamBundle {
+            camera: Camera3dBundle {
+                projection: Projection::Perspective(PerspectiveProjection {
+                    fov: 80.0 * PI / 180.0,
+                    near: 0.01,
+                    far: 1000.0,
+                    ..default()
+                }),
+                transform: Transform::from_translation(Vec3::new(0.0, 10.0, 15.0)),
                 ..default()
-            }),
-            transform: Transform::from_translation(Vec3::new(0.0, 10.0, 15.0)),
+            },
             ..default()
         },
-        ..default()
-    });
+        ChunkLoader::new(0),
+    ));
 
     let cube_mesh = meshes.add(Cube::new(0.8).into());
 
@@ -118,9 +116,7 @@ fn init_world(
     let chunk_material = materials.add(Color::WHITE.into());
 
     // Voxel test
-    let mut chunk = voxel::Chunk::from_voxel(Voxel::Stone);
-    chunk.set(InChunkPos::new(UVec3::ZERO).unwrap(), Voxel::Air);
-    chunk.set(InChunkPos::new(UVec3::new(15, 0, 0)).unwrap(), Voxel::Air);
+    let chunk = world_noise.build_heightmap_chunk(IVec3::ZERO);
 
     let chunk_mesh = meshes.add(chunk.generate_mesh());
     commands.spawn((

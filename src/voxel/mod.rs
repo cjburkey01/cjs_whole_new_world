@@ -1,3 +1,5 @@
+pub mod world_noise;
+
 use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
@@ -183,20 +185,74 @@ impl Chunk {
     }
 
     pub fn generate_mesh(&self) -> Mesh {
+        let mesh_directions = [
+            // Normal towards +Z
+            SliceDirection {
+                right: Axis::PosX,
+                up: Axis::PosY,
+            },
+            // Normal towards -Z
+            SliceDirection {
+                right: Axis::NegX,
+                up: Axis::PosY,
+            },
+            // Normal towards +X
+            SliceDirection {
+                right: Axis::NegZ,
+                up: Axis::PosY,
+            },
+            // Normal towards -X
+            SliceDirection {
+                right: Axis::PosZ,
+                up: Axis::PosY,
+            },
+            // Normal towards -Y
+            SliceDirection {
+                right: Axis::PosX,
+                up: Axis::PosZ,
+            },
+            // Normal towards +Y
+            SliceDirection {
+                right: Axis::NegX,
+                up: Axis::PosZ,
+            },
+        ];
+
         let mut tmp_mesh = TmpMesh::default();
-        let mut last_slice_bits = None;
-        for z in 0..CHUNK_WIDTH {
-            last_slice_bits = Some(self.mesh_slice(
-                SliceDirection {
-                    right: Axis::NegX,
-                    up: Axis::PosY,
-                },
-                CHUNK_WIDTH - 1 - z,
-                &mut tmp_mesh,
-                last_slice_bits.take(),
-            ));
+        for dir in mesh_directions {
+            for z in 0..CHUNK_WIDTH {
+                self.mesh_slice(
+                    dir,
+                    z,
+                    &mut tmp_mesh,
+                    if z < CHUNK_WIDTH - 1 {
+                        self.get_solid_bits_slice(dir, z + 1)
+                    } else {
+                        None
+                    },
+                );
+            }
         }
         tmp_mesh.build()
+    }
+
+    fn get_solid_bits_slice(
+        &self,
+        slice_direction: SliceDirection,
+        slice_depth: u32,
+    ) -> Option<BitVec> {
+        let mut bit_slice = BitVec::repeat(false, CHUNK_CUBE as usize);
+        for y in 0..CHUNK_WIDTH {
+            let slice_row_index = y * CHUNK_WIDTH;
+            for x in 0..CHUNK_WIDTH {
+                let voxel = self.at(InChunkPos::new(
+                    slice_direction.transform(slice_depth, UVec2::new(x, y))?,
+                )?);
+                let slice_index = slice_row_index + x;
+                bit_slice.set(slice_index as usize, voxel.does_cull_as_solid());
+            }
+        }
+        Some(bit_slice)
     }
 
     fn mesh_slice(
@@ -205,7 +261,7 @@ impl Chunk {
         slice_depth: u32,
         mesh: &mut TmpMesh,
         previous_slice_bits: Option<BitVec>,
-    ) -> BitVec {
+    ) {
         fn emit_quad(
             slice_direction: SliceDirection,
             slice_depth: u32,
@@ -234,11 +290,12 @@ impl Chunk {
                             .unwrap(),
                     )
                     .unwrap();
-                    if voxels[in_pos.index()] != quad.voxel || slice_bits[slice_index]
-                    /*|| previous_slice_bits
-                    .as_ref()
-                    .map(|b| b[slice_index])
-                    .unwrap_or(false)*/
+                    if voxels[in_pos.index()] != quad.voxel
+                        || slice_bits[slice_index]
+                        || previous_slice_bits
+                            .as_ref()
+                            .map(|b| b[slice_index])
+                            .unwrap_or(false)
                     {
                         break 'outer;
                     }
@@ -268,14 +325,14 @@ impl Chunk {
                         .unwrap(),
                 )
                 .unwrap();
-                let voxel = self.voxels[pos.index()];
+                let voxel = self.at(pos);
 
                 // If the slice bit for this pos is `true`
                 if slice_bits[slice_index]
-                /*|| previous_slice_bits
-                .as_ref()
-                .map(|b| b[slice_index])
-                .unwrap_or(false)*/
+                    || previous_slice_bits
+                        .as_ref()
+                        .map(|b| b[slice_index])
+                        .unwrap_or(false)
                 {
                     // We have to do this because the slice_bit might be false
                     // if the previous_slice_bit is true
@@ -283,8 +340,6 @@ impl Chunk {
 
                     // If the current quad is `Some`
                     if let Some(quad) = current_quad.take() {
-                        debug!("A");
-
                         // Perform quad emit.
                         emit_quad(
                             slice_direction,
@@ -313,8 +368,6 @@ impl Chunk {
                         current_quad = Some(quad);
                         continue;
                     } else {
-                        debug!("B");
-
                         // Perform quad emit.
                         emit_quad(
                             slice_direction,
@@ -341,8 +394,6 @@ impl Chunk {
 
             // After the X loop, emit the current quad if it is `Some`
             if let Some(quad) = current_quad.take() {
-                debug!("C");
-
                 emit_quad(
                     slice_direction,
                     slice_depth,
@@ -354,9 +405,6 @@ impl Chunk {
                 );
             }
         }
-
-        //slice_bits
-        BitVec::EMPTY
     }
 }
 
@@ -400,8 +448,6 @@ impl TmpMesh {
         // i guess.
         // When we extend this behavior to other directions, we'll need
         // to take all this shit into account.
-
-        debug!("emit quad {slice_dir:?} {quad:#?}");
 
         let Quad {
             start,
