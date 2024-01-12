@@ -44,7 +44,7 @@ pub struct LoadingMap {}
 
 // What do you mean, clippy?
 // Eight (8) is a perfectly reasonable number of arguments.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn on_loader_position_changed(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

@@ -208,10 +208,12 @@ impl Chunk {
         }
     }
 
+    #[allow(unused)]
     pub fn at(&self, pos: InChunkPos) -> Voxel {
         self.voxels.at(pos)
     }
 
+    #[allow(unused)]
     pub fn set(&mut self, pos: InChunkPos, voxel: Voxel) {
         self.voxels.set(pos, voxel);
         if voxel != Voxel::Air {
@@ -529,7 +531,7 @@ impl TmpMesh {
         // Add UVs for each vertex
         {
             let epsilon = Vec2::splat(0.001);
-            let (mut min_uv, mut max_uv) = voxel.uv_min_max();
+            let (min_uv, max_uv) = voxel.uv_min_max();
             let high_left_uv = min_uv + epsilon;
             let low_right_uv = max_uv - epsilon;
             let end_uv = Vec2::new(low_right_uv.x, high_left_uv.y);
