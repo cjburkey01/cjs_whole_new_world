@@ -126,6 +126,7 @@ jobs:
 
       - name: Build
         run: |
+          echo "${{ env.LLVM_PATH }}/bin" >> $GITHUB_PATH
           cargo build --release --target x86_64-apple-darwin
 
       - name: Prepare Package
@@ -167,9 +168,14 @@ jobs:
         # macOS 11 was the first version to support ARM
         run: |
           export MACOSX_DEPLOYMENT_TARGET="11"
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "15.0"
 
       - name: Build
         run: |
+          echo "${{ env.LLVM_PATH }}/bin" >> $GITHUB_PATH
           cargo build --release --target aarch64-apple-darwin
 
       - name: Prepare Package
