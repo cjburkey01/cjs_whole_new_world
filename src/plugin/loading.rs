@@ -33,7 +33,7 @@ impl ChunkLoader {
     pub fn new(radius: u32) -> Self {
         Self {
             radius,
-            last_chunk: IVec3::ZERO,
+            last_chunk: IVec3::MAX,
         }
     }
 }
@@ -51,7 +51,10 @@ fn on_loader_position_changed(
     world_noise: Res<WorldNoiseSettings>,
     mut chunks: ResMut<Chunks>,
     mut entities: ResMut<ChunkEntities>,
-    mut changed: Query<(&Transform, &mut ChunkLoader), Changed<Transform>>,
+    mut changed: Query<
+        (&Transform, &mut ChunkLoader),
+        Or<(Changed<Transform>, Added<ChunkLoader>)>,
+    >,
     existing_mesh_chunks: Query<&MeshedChunk, Without<ChunkLoader>>,
 ) {
     let w = CHUNK_WIDTH as i32;
@@ -69,25 +72,27 @@ fn on_loader_position_changed(
             for r in 0..=(loader.radius as i32) {
                 for z in -r..=r {
                     for x in -r..=r {
-                        let chunk_pos = current_chunk_pos + IVec3::new(x, 0, z);
-                        // From `chunk_map`
-                        gen_chunk(
-                            &mut commands,
-                            &world_noise,
-                            &mut chunks,
-                            &mut entities,
-                            chunk_pos,
-                        );
-                        mesh_chunk(
-                            &mut commands,
-                            &chunks,
-                            &entities,
-                            chunk_pos,
-                            &mut meshes,
-                            &material.0,
-                            &existing_mesh_chunks,
-                            true,
-                        );
+                        for y in -2..=2 {
+                            let chunk_pos = current_chunk_pos + IVec3::new(x, y, z);
+                            // From `chunk_map`
+                            gen_chunk(
+                                &mut commands,
+                                &world_noise,
+                                &mut chunks,
+                                &mut entities,
+                                chunk_pos,
+                            );
+                            mesh_chunk(
+                                &mut commands,
+                                &chunks,
+                                &entities,
+                                chunk_pos,
+                                &mut meshes,
+                                &material.0,
+                                &existing_mesh_chunks,
+                                false,
+                            );
+                        }
                     }
                 }
             }

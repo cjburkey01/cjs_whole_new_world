@@ -66,6 +66,18 @@ fn init_world(
     // mut meshes: ResMut<Assets<Mesh>>,
     // mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // Lights
+    commands.spawn(DirectionalLightBundle {
+        transform: Transform::from_translation(Vec3::new(2.0, 3.0, 4.0))
+            .looking_at(Vec3::ZERO, Vec3::Y),
+        directional_light: DirectionalLight {
+            color: Color::BISQUE,
+            shadows_enabled: true,
+            ..default()
+        },
+        ..default()
+    });
+
     // Camera
     commands.spawn((
         control::PlyCamBundle {
@@ -81,8 +93,10 @@ fn init_world(
             },
             ..default()
         },
-        loading::ChunkLoader::new(1),
+        loading::ChunkLoader::new(2),
     ));
+
+    // Action
 
     // Center debug cubes
     /*

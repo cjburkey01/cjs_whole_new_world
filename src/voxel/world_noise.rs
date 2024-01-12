@@ -13,9 +13,7 @@ pub struct WorldNoiseSettings {
 impl WorldNoiseSettings {
     pub fn new(seed: u32) -> Self {
         Self {
-            fbm: Fbm::<Simplex>::new(seed)
-                .set_frequency(0.4)
-                .set_persistence(0.2),
+            fbm: Fbm::<Simplex>::new(seed).set_frequency(0.01),
         }
     }
 
@@ -32,18 +30,23 @@ impl WorldNoiseSettings {
     pub fn build_heightmap_chunk(&self, chunk_pos: IVec3) -> Chunk {
         let mut chunk = Chunk::default();
         let heightmap = self.noise_chunk_heightmap(chunk_pos);
+        let mut definitely_empty = true;
         for z in 0..CHUNK_WIDTH {
             for x in 0..CHUNK_WIDTH {
-                let height = heightmap[(z * CHUNK_WIDTH + x) as usize] * 16.0
+                let height = heightmap[(z * CHUNK_WIDTH + x) as usize] * 150.0
                     - (chunk_pos.y * CHUNK_WIDTH as i32) as f64
                     + 10.0;
                 for y in 0..(height.max(0.0) as u32).min(CHUNK_WIDTH) {
+                    definitely_empty = false;
                     chunk
                         .voxels
                         .set(InChunkPos::new(UVec3::new(x, y, z)).unwrap(), Voxel::Stone);
                 }
             }
         }
-        chunk
+        Chunk {
+            definitely_empty,
+            ..chunk
+        }
     }
 }

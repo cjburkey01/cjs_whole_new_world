@@ -36,7 +36,7 @@ impl Default for PlyCamControl {
     fn default() -> Self {
         Self {
             speed: 20.0,
-            fast_speed: 40.0,
+            fast_speed: 100.0,
             rot_speed: 0.2,
         }
     }

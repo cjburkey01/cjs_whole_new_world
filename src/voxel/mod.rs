@@ -191,64 +191,83 @@ impl VoxelContainer {
 
 #[derive(Default)]
 pub struct Chunk {
-    pub voxels: VoxelContainer,
+    voxels: VoxelContainer,
+    pub definitely_empty: bool,
 }
 
 impl Chunk {
     #[allow(unused)]
     pub fn new(voxels: VoxelContainer) -> Self {
-        Self { voxels }
+        Self {
+            voxels,
+            ..default()
+        }
+    }
+
+    pub fn at(&self, pos: InChunkPos) -> Voxel {
+        self.voxels.at(pos)
+    }
+
+    pub fn set(&mut self, pos: InChunkPos, voxel: Voxel) {
+        self.voxels.set(pos, voxel);
+        if voxel != Voxel::Air {
+            self.definitely_empty = false;
+        }
     }
 
     pub fn generate_mesh(&self) -> Mesh {
-        let mesh_directions = [
-            // Normal towards +Z
-            SliceDirection {
-                right: Axis::PosX,
-                up: Axis::PosY,
-            },
-            // Normal towards -Z
-            SliceDirection {
-                right: Axis::NegX,
-                up: Axis::PosY,
-            },
-            // Normal towards +X
-            SliceDirection {
-                right: Axis::NegZ,
-                up: Axis::PosY,
-            },
-            // Normal towards -X
-            SliceDirection {
-                right: Axis::PosZ,
-                up: Axis::PosY,
-            },
-            // Normal towards -Y
-            SliceDirection {
-                right: Axis::PosX,
-                up: Axis::PosZ,
-            },
-            // Normal towards +Y
-            SliceDirection {
-                right: Axis::NegX,
-                up: Axis::PosZ,
-            },
-        ];
-
         let mut tmp_mesh = TmpMesh::default();
-        for dir in mesh_directions {
-            for z in 0..CHUNK_WIDTH {
-                self.mesh_slice(
-                    dir,
-                    z,
-                    &mut tmp_mesh,
-                    if z < CHUNK_WIDTH - 1 {
-                        self.get_solid_bits_slice(dir, z + 1)
-                    } else {
-                        None
-                    },
-                );
+
+        if !self.definitely_empty {
+            let mesh_directions = [
+                // Normal towards +Z
+                SliceDirection {
+                    right: Axis::PosX,
+                    up: Axis::PosY,
+                },
+                // Normal towards -Z
+                SliceDirection {
+                    right: Axis::NegX,
+                    up: Axis::PosY,
+                },
+                // Normal towards +X
+                SliceDirection {
+                    right: Axis::NegZ,
+                    up: Axis::PosY,
+                },
+                // Normal towards -X
+                SliceDirection {
+                    right: Axis::PosZ,
+                    up: Axis::PosY,
+                },
+                // Normal towards -Y
+                SliceDirection {
+                    right: Axis::PosX,
+                    up: Axis::PosZ,
+                },
+                // Normal towards +Y
+                SliceDirection {
+                    right: Axis::NegX,
+                    up: Axis::PosZ,
+                },
+            ];
+
+            for dir in mesh_directions {
+                for z in 0..CHUNK_WIDTH {
+                    self.mesh_slice(
+                        dir,
+                        z,
+                        &mut tmp_mesh,
+                        if z < CHUNK_WIDTH - 1 {
+                            self.get_solid_bits_slice(dir, z + 1)
+                        } else {
+                            None
+                        },
+                    );
+                }
             }
         }
+
         tmp_mesh.build()
     }
 
@@ -446,6 +465,7 @@ struct TmpMesh {
     verts: Vec<Vec3>,
     inds: Vec<u16>,
     uvs: Vec<Vec2>,
+    norms: Vec<Vec3>,
 }
 
 impl TmpMesh {
@@ -502,14 +522,6 @@ impl TmpMesh {
             );
         }
 
-        // Add indices to make a quad
-        self.inds.append(
-            &mut [0u16, 1, 3, 0, 2, 1]
-                .into_iter()
-                .map(|i| start_ind + i)
-                .collect(),
-        );
-
         // Add UVs for each vertex
         {
             let (high_left_uv, low_right_uv) = voxel.uv_min_max();
@@ -518,15 +530,38 @@ impl TmpMesh {
             self.uvs
                 .append(&mut vec![start_uv, end_uv, low_right_uv, high_left_uv]);
         }
+
+        // Add normals
+        self.norms.append(
+            &mut [slice_dir.normal().to_ivec3().as_vec3()]
+                .into_iter()
+                .cycle()
+                .take(4)
+                .collect(),
+        );
+
+        // Add indices to make a quad
+        self.inds.append(
+            &mut [0u16, 1, 3, 0, 2, 1]
+                .into_iter()
+                .map(|i| start_ind + i)
+                .collect(),
+        );
     }
 
     pub fn build(self) -> Mesh {
-        let Self { verts, inds, uvs } = self;
+        let Self {
+            verts,
+            inds,
+            uvs,
+            norms,
+        } = self;
 
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, norms);
         mesh.set_indices(Some(Indices::U16(inds)));
 
         mesh
