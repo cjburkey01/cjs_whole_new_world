@@ -42,7 +42,8 @@ fn main() {
                         features: WgpuFeatures::POLYGON_MODE_LINE,
                         ..default()
                     }),
-                }),
+                })
+                .set(ImagePlugin::default_nearest()),
         )
         .add_plugins(WireframePlugin)
         .add_plugins((

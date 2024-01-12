@@ -18,8 +18,9 @@ pub struct ChunkMaterialRes(pub Handle<StandardMaterial>);
 fn add_chunk_material_system(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    let handle = materials.add(Color::WHITE.into());
+    let handle = materials.add(asset_server.load::<Image>("textures/voxels.png").into());
     commands.insert_resource(ChunkMaterialRes(handle));
 }
 

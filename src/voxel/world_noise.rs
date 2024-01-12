@@ -38,9 +38,13 @@ impl WorldNoiseSettings {
                     + 10.0;
                 for y in 0..(height.max(0.0) as u32).min(CHUNK_WIDTH) {
                     definitely_empty = false;
-                    chunk
-                        .voxels
-                        .set(InChunkPos::new(UVec3::new(x, y, z)).unwrap(), Voxel::Stone);
+                    chunk.voxels.set(
+                        InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
+                        match (y as f64) < (height - 3.0) {
+                            true => Voxel::Stone,
+                            false => Voxel::Grass,
+                        },
+                    );
                 }
             }
         }

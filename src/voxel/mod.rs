@@ -140,7 +140,11 @@ impl Voxel {
 
     pub fn uv_min_max(&self) -> (Vec2, Vec2) {
         // TODO: THIS
-        (Vec2::ZERO, Vec2::ONE)
+        match *self {
+            Voxel::Air => (Vec2::ZERO, Vec2::ZERO),
+            Voxel::Stone => (Vec2::X / 4.0, (Vec2::ONE + Vec2::X) / 4.0),
+            Voxel::Grass => (Vec2::ZERO, Vec2::ONE / 4.0),
+        }
     }
 }
 
@@ -524,7 +528,10 @@ impl TmpMesh {
 
         // Add UVs for each vertex
         {
-            let (high_left_uv, low_right_uv) = voxel.uv_min_max();
+            let epsilon = Vec2::splat(0.001);
+            let (mut min_uv, mut max_uv) = voxel.uv_min_max();
+            let high_left_uv = min_uv + epsilon;
+            let low_right_uv = max_uv - epsilon;
             let end_uv = Vec2::new(low_right_uv.x, high_left_uv.y);
             let start_uv = Vec2::new(high_left_uv.x, low_right_uv.y);
             self.uvs
