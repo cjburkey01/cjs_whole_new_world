@@ -126,8 +126,7 @@ jobs:
 
       - name: Build
         run: |
-          echo "${{ env.LLVM_PATH }}/bin" >> $GITHUB_PATH
-          cargo build --release --target x86_64-apple-darwin
+          RUSTFLAGS="-L ${{ env.LLVM_PATH }}/bin" cargo build --release --target x86_64-apple-darwin
 
       - name: Prepare Package
         run: |
@@ -175,8 +174,7 @@ jobs:
 
       - name: Build
         run: |
-          echo "${{ env.LLVM_PATH }}/bin" >> $GITHUB_PATH
-          cargo build --release --target aarch64-apple-darwin
+          RUSTFLAGS="-L ${{ env.LLVM_PATH }}/bin" cargo build --release --target aarch64-apple-darwin
 
       - name: Prepare Package
         run: |

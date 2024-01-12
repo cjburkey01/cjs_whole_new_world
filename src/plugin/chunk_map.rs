@@ -48,13 +48,13 @@ pub fn gen_chunk(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn mesh_chunk<F: ReadOnlyWorldQuery>(
+pub fn mesh_chunk<F: ReadOnlyWorldQuery, M: Material>(
     commands: &mut Commands,
     chunks: &Chunks,
     entities: &ChunkEntities,
     chunk_pos: IVec3,
     meshes: &mut Assets<Mesh>,
-    material: &Handle<StandardMaterial>,
+    material: &Handle<M>,
     existing_mesh_chunks: &Query<&MeshedChunk, F>,
     wireframe: bool,
 ) {

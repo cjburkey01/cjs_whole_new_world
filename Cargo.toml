@@ -1,6 +1,6 @@
 [package]
 name = "cjs_whole_new_world"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 
 [dependencies]

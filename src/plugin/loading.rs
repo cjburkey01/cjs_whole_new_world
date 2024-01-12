@@ -1,5 +1,8 @@
 use super::chunk_map::*;
-use crate::voxel::{world_noise::WorldNoiseSettings, CHUNK_WIDTH};
+use crate::{
+    plugin::voxel_material::ChunkMaterialRes,
+    voxel::{world_noise::WorldNoiseSettings, CHUNK_WIDTH},
+};
 use bevy::prelude::*;
 
 pub struct ChunkLoadingPlugin;
@@ -7,21 +10,8 @@ pub struct ChunkLoadingPlugin;
 impl Plugin for ChunkLoadingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LoadingMap>()
-            .add_systems(Update, on_loader_position_changed)
-            .add_systems(Startup, add_chunk_material_system);
+            .add_systems(Update, on_loader_position_changed);
     }
-}
-
-#[derive(Resource)]
-pub struct ChunkMaterialRes(pub Handle<StandardMaterial>);
-
-fn add_chunk_material_system(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-) {
-    let handle = materials.add(asset_server.load::<Image>("textures/voxels.png").into());
-    commands.insert_resource(ChunkMaterialRes(handle));
 }
 
 #[derive(Debug, Component, Clone, Eq, PartialEq)]

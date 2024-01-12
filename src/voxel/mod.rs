@@ -1,5 +1,6 @@
 pub mod world_noise;
 
+use crate::plugin::voxel_material::ATTRIBUTE_ATLAS_INDEX;
 use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
@@ -138,12 +139,11 @@ impl Voxel {
         }
     }
 
-    pub fn uv_min_max(&self) -> (Vec2, Vec2) {
-        // TODO: THIS
-        match *self {
-            Voxel::Air => (Vec2::ZERO, Vec2::ZERO),
-            Voxel::Stone => (Vec2::X / 4.0, (Vec2::ONE + Vec2::X) / 4.0),
-            Voxel::Grass => (Vec2::ZERO, Vec2::ONE / 4.0),
+    pub fn atlas_index(&self) -> u32 {
+        match self {
+            Voxel::Air => 0,
+            Voxel::Stone => 1,
+            Voxel::Grass => 0,
         }
     }
 }
@@ -472,6 +472,7 @@ struct TmpMesh {
     inds: Vec<u16>,
     uvs: Vec<Vec2>,
     norms: Vec<Vec3>,
+    atlas_indices: Vec<u32>,
 }
 
 impl TmpMesh {
@@ -528,10 +529,11 @@ impl TmpMesh {
             );
         }
 
+        let size = (end.as_vec2() - start.as_vec2()).abs();
         // Add UVs for each vertex
         {
             let epsilon = Vec2::splat(0.001);
-            let (min_uv, max_uv) = voxel.uv_min_max();
+            let (min_uv, max_uv) = (Vec2::ZERO, size); //voxel.uv_min_max();
             let high_left_uv = min_uv + epsilon;
             let low_right_uv = max_uv - epsilon;
             let end_uv = Vec2::new(low_right_uv.x, high_left_uv.y);
@@ -556,6 +558,9 @@ impl TmpMesh {
                 .map(|i| start_ind + i)
                 .collect(),
         );
+
+        self.atlas_indices
+            .append(&mut [voxel.atlas_index()].into_iter().cycle().take(4).collect());
     }
 
     pub fn build(self) -> Mesh {
@@ -564,15 +569,14 @@ impl TmpMesh {
             inds,
             uvs,
             norms,
+            atlas_indices,
         } = self;
 
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, norms);
-        mesh.set_indices(Some(Indices::U16(inds)));
-
-        mesh
+        Mesh::new(PrimitiveTopology::TriangleList)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, verts)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, norms)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_attribute(ATTRIBUTE_ATLAS_INDEX, atlas_indices)
+            .with_indices(Some(Indices::U16(inds)))
     }
 }

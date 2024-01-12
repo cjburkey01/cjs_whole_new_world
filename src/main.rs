@@ -5,11 +5,6 @@ use bevy::{
     log::{Level, LogPlugin},
     pbr::wireframe::WireframePlugin,
     prelude::*,
-    render::{
-        render_resource::WgpuFeatures,
-        settings::{RenderCreation, WgpuSettings},
-        RenderPlugin,
-    },
 };
 use leafwing_input_manager::prelude::*;
 use plugin::*;
@@ -34,21 +29,13 @@ fn main() {
                         ..default()
                     }),
                     ..default()
-                })
-                .set(RenderPlugin {
-                    render_creation: RenderCreation::Automatic(WgpuSettings {
-                        // WARN this is a native only feature.
-                        // It will not work with webgl or webgpu.
-                        features: WgpuFeatures::POLYGON_MODE_LINE,
-                        ..default()
-                    }),
-                })
-                .set(ImagePlugin::default_nearest()),
+                }),
         )
         .add_plugins(WireframePlugin)
         .add_plugins((
             InputManagerPlugin::<control::input::PlyAction>::default(),
             control::PlyControlPlugin,
+            voxel_material::VoxelMaterialPlugin,
             loading::ChunkLoadingPlugin,
             chunk_map::ChunkMapPlugin,
         ))
