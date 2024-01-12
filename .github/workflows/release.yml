@@ -119,6 +119,10 @@ jobs:
         run: |
           export CFLAGS="-fno-stack-check"
           export MACOSX_DEPLOYMENT_TARGET="10.9"
+      - name: Install LLVM and Clang
+      - uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "15.0"
 
       - name: Build
         run: |
