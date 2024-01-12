@@ -1,11 +1,10 @@
 mod plugin;
 mod voxel;
 
-use crate::plugin::loading::ChunkLoader;
 use bevy::{
     log::{Level, LogPlugin},
-    pbr::wireframe::{Wireframe, WireframePlugin},
-    prelude::{shape::Cube, *},
+    pbr::wireframe::WireframePlugin,
+    prelude::*,
     render::{
         render_resource::WgpuFeatures,
         settings::{RenderCreation, WgpuSettings},
@@ -50,6 +49,7 @@ fn main() {
             InputManagerPlugin::<control::input::PlyAction>::default(),
             control::PlyControlPlugin,
             loading::ChunkLoadingPlugin,
+            chunk_map::ChunkMapPlugin,
         ))
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
@@ -63,9 +63,8 @@ fn main() {
 
 fn init_world(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    world_noise: Res<WorldNoiseSettings>,
+    // mut meshes: ResMut<Assets<Mesh>>,
+    // mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Camera
     commands.spawn((
@@ -82,49 +81,36 @@ fn init_world(
             },
             ..default()
         },
-        ChunkLoader::new(0),
+        loading::ChunkLoader::new(1),
     ));
 
-    let cube_mesh = meshes.add(Cube::new(0.8).into());
+    // Center debug cubes
+    /*
+        let cube_mesh = meshes.add(Cube::new(0.8).into());
 
-    // Center cubes
-    commands.spawn(MaterialMeshBundle {
-        mesh: cube_mesh.clone(),
-        material: materials.add(Color::WHITE.into()),
-        transform: Transform::from_translation(Vec3::ZERO),
-        ..default()
-    });
-    commands.spawn(MaterialMeshBundle {
-        mesh: cube_mesh.clone(),
-        material: materials.add(Color::RED.into()),
-        transform: Transform::from_translation(Vec3::X),
-        ..default()
-    });
-    commands.spawn(MaterialMeshBundle {
-        mesh: cube_mesh.clone(),
-        material: materials.add(Color::GREEN.into()),
-        transform: Transform::from_translation(Vec3::Y),
-        ..default()
-    });
-    commands.spawn(MaterialMeshBundle {
-        mesh: cube_mesh.clone(),
-        material: materials.add(Color::BLUE.into()),
-        transform: Transform::from_translation(Vec3::Z),
-        ..default()
-    });
-
-    let chunk_material = materials.add(Color::WHITE.into());
-
-    // Voxel test
-    let chunk = world_noise.build_heightmap_chunk(IVec3::ZERO);
-
-    let chunk_mesh = meshes.add(chunk.generate_mesh());
-    commands.spawn((
-        MaterialMeshBundle {
-            mesh: chunk_mesh,
-            material: chunk_material,
+        commands.spawn(MaterialMeshBundle {
+            mesh: cube_mesh.clone(),
+            material: materials.add(Color::WHITE.into()),
+            transform: Transform::from_translation(Vec3::ZERO),
             ..default()
-        },
-        Wireframe,
-    ));
+        });
+        commands.spawn(MaterialMeshBundle {
+            mesh: cube_mesh.clone(),
+            material: materials.add(Color::RED.into()),
+            transform: Transform::from_translation(Vec3::X),
+            ..default()
+        });
+        commands.spawn(MaterialMeshBundle {
+            mesh: cube_mesh.clone(),
+            material: materials.add(Color::GREEN.into()),
+            transform: Transform::from_translation(Vec3::Y),
+            ..default()
+        });
+        commands.spawn(MaterialMeshBundle {
+            mesh: cube_mesh.clone(),
+            material: materials.add(Color::BLUE.into()),
+            transform: Transform::from_translation(Vec3::Z),
+            ..default()
+        });
+    */
 }

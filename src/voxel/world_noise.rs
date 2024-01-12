@@ -19,10 +19,6 @@ impl WorldNoiseSettings {
         }
     }
 
-    pub fn fbm(&self) -> &Fbm<Simplex> {
-        &self.fbm
-    }
-
     pub fn noise_chunk_heightmap(&self, chunk_pos: IVec3) -> Vec<f64> {
         PlaneMapBuilder::<_, 2>::new(&self.fbm)
             .set_size(CHUNK_WIDTH as usize, CHUNK_WIDTH as usize)
@@ -34,7 +30,7 @@ impl WorldNoiseSettings {
     }
 
     pub fn build_heightmap_chunk(&self, chunk_pos: IVec3) -> Chunk {
-        let mut chunk = Chunk::empty();
+        let mut chunk = Chunk::default();
         let heightmap = self.noise_chunk_heightmap(chunk_pos);
         for z in 0..CHUNK_WIDTH {
             for x in 0..CHUNK_WIDTH {
@@ -42,7 +38,9 @@ impl WorldNoiseSettings {
                     - (chunk_pos.y * CHUNK_WIDTH as i32) as f64
                     + 10.0;
                 for y in 0..(height.max(0.0) as u32).min(CHUNK_WIDTH) {
-                    chunk.set(InChunkPos::new(UVec3::new(x, y, z)).unwrap(), Voxel::Stone);
+                    chunk
+                        .voxels
+                        .set(InChunkPos::new(UVec3::new(x, y, z)).unwrap(), Voxel::Stone);
                 }
             }
         }

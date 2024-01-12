@@ -5,7 +5,7 @@ use bevy::{
     render::mesh::{Indices, PrimitiveTopology},
 };
 use bitvec::prelude::*;
-use std::ops::{BitOr, Deref};
+use std::ops::{Deref, DerefMut};
 
 // TODO: WHY IS AN EXTRA QUAD GENERATED WHEN THE NORMAL IS NEGATIVE??
 
@@ -110,10 +110,6 @@ impl InChunkPos {
     pub fn index(&self) -> usize {
         (CHUNK_SQUARE * self.z + CHUNK_WIDTH * self.y + self.x) as usize
     }
-
-    pub fn inner(&self) -> UVec3 {
-        self.0
-    }
 }
 
 impl Deref for InChunkPos {
@@ -129,6 +125,7 @@ pub enum Voxel {
     #[default]
     Air,
     Stone,
+    #[allow(unused)]
     Grass,
 }
 
@@ -147,41 +144,60 @@ impl Voxel {
     }
 }
 
-pub struct Chunk {
-    bits: BitVec,
-    voxels: Box<[Voxel; CHUNK_CUBE as usize]>,
+pub struct VoxelContainer(pub Box<[Voxel; CHUNK_CUBE as usize]>);
+
+impl Default for VoxelContainer {
+    fn default() -> Self {
+        Self(Box::new([default(); CHUNK_CUBE as usize]))
+    }
 }
 
-impl Chunk {
-    pub fn empty() -> Self {
-        Self::from_voxel(default())
-    }
+impl Deref for VoxelContainer {
+    type Target = [Voxel];
 
+    fn deref(&self) -> &Self::Target {
+        self.0.as_slice()
+    }
+}
+
+impl DerefMut for VoxelContainer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut_slice()
+    }
+}
+
+impl VoxelContainer {
+    #[allow(unused)]
     pub fn from_voxel(voxel: Voxel) -> Self {
-        Self {
-            bits: BitVec::repeat(voxel.does_cull_as_solid(), CHUNK_CUBE as usize),
-            voxels: Box::new([voxel; CHUNK_CUBE as usize]),
-        }
+        Self(Box::new([voxel; CHUNK_CUBE as usize]))
     }
 
+    #[allow(unused)]
     pub fn from_voxels(voxels: Vec<Voxel>) -> Option<Self> {
         match voxels.len() as u32 {
-            CHUNK_CUBE => Some(Self {
-                bits: BitVec::from_iter(voxels.iter().map(Voxel::does_cull_as_solid)),
-                voxels: voxels.try_into().ok()?,
-            }),
+            CHUNK_CUBE => Some(Self(voxels.try_into().ok()?)),
             _ => None,
         }
     }
 
     pub fn at(&self, pos: InChunkPos) -> Voxel {
-        self.voxels[pos.index()]
+        self.0[pos.index()]
     }
 
     pub fn set(&mut self, pos: InChunkPos, voxel: Voxel) {
-        let index = pos.index();
-        self.bits.set(index, voxel.does_cull_as_solid());
-        self.voxels[index] = voxel;
+        self.0[pos.index()] = voxel;
+    }
+}
+
+#[derive(Default)]
+pub struct Chunk {
+    pub voxels: VoxelContainer,
+}
+
+impl Chunk {
+    #[allow(unused)]
+    pub fn new(voxels: VoxelContainer) -> Self {
+        Self { voxels }
     }
 
     pub fn generate_mesh(&self) -> Mesh {
@@ -245,7 +261,7 @@ impl Chunk {
         for y in 0..CHUNK_WIDTH {
             let slice_row_index = y * CHUNK_WIDTH;
             for x in 0..CHUNK_WIDTH {
-                let voxel = self.at(InChunkPos::new(
+                let voxel = self.voxels.at(InChunkPos::new(
                     slice_direction.transform(slice_depth, UVec2::new(x, y))?,
                 )?);
                 let slice_index = slice_row_index + x;
@@ -325,7 +341,7 @@ impl Chunk {
                         .unwrap(),
                 )
                 .unwrap();
-                let voxel = self.at(pos);
+                let voxel = self.voxels.at(pos);
 
                 // If the slice bit for this pos is `true`
                 if slice_bits[slice_index]
@@ -345,7 +361,7 @@ impl Chunk {
                             slice_direction,
                             slice_depth,
                             quad,
-                            self.voxels.as_slice(),
+                            self.voxels.0.as_slice(),
                             &mut slice_bits,
                             &previous_slice_bits,
                             mesh,
@@ -373,7 +389,7 @@ impl Chunk {
                             slice_direction,
                             slice_depth,
                             quad,
-                            self.voxels.as_slice(),
+                            self.voxels.0.as_slice(),
                             &mut slice_bits,
                             &previous_slice_bits,
                             mesh,
@@ -398,7 +414,7 @@ impl Chunk {
                     slice_direction,
                     slice_depth,
                     quad,
-                    self.voxels.as_slice(),
+                    self.voxels.0.as_slice(),
                     &mut slice_bits,
                     &previous_slice_bits,
                     mesh,
