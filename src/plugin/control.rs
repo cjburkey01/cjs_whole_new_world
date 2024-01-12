@@ -48,8 +48,6 @@ fn move_ply_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &PlyCamControl, &ActionState<PlyAction>)>,
 ) {
-    debug!("{}", Vec3::X.cross(Vec3::Y));
-
     for (mut transform, ply_cam, ctrl) in query.iter_mut() {
         // Move camera
         let key_motion = ctrl.axis_pair(PlyAction::LateralMove).unwrap();

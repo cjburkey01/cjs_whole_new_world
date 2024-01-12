@@ -1,9 +1,16 @@
 mod plugin;
 mod voxel;
 
+use crate::voxel::{InChunkPos, Voxel};
 use bevy::{
     log::{Level, LogPlugin},
+    pbr::wireframe::{Wireframe, WireframeConfig, WireframePlugin},
     prelude::{shape::Cube, *},
+    render::{
+        render_resource::WgpuFeatures,
+        settings::{RenderCreation, WgpuSettings},
+        RenderPlugin,
+    },
 };
 use leafwing_input_manager::prelude::*;
 use plugin::*;
@@ -27,8 +34,17 @@ fn main() {
                         ..default()
                     }),
                     ..default()
+                })
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        // WARN this is a native only feature.
+                        // It will not work with webgl or webgpu.
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
                 }),
         )
+        .add_plugins(WireframePlugin)
         .add_plugins((
             InputManagerPlugin::<input::PlyAction>::default(),
             control::PlyControlPlugin,
@@ -37,6 +53,15 @@ fn main() {
         .insert_resource(AmbientLight {
             brightness: 0.3,
             ..default()
+        })
+        .insert_resource(WireframeConfig {
+            // The global wireframe config enables drawing of wireframes on every mesh,
+            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+            // regardless of the global configuration.
+            global: false,
+            // Controls the default color of all wireframes. Used as the default color for global wireframes.
+            // Can be changed per mesh using the `WireframeColor` component.
+            default_color: Color::WHITE,
         })
         .add_systems(Startup, init_world)
         .run();
@@ -89,4 +114,21 @@ fn init_world(
         transform: Transform::from_translation(Vec3::Z),
         ..default()
     });
+
+    let chunk_material = materials.add(Color::WHITE.into());
+
+    // Voxel test
+    let mut chunk = voxel::Chunk::from_voxel(Voxel::Stone);
+    chunk.set(InChunkPos::new(UVec3::ZERO).unwrap(), Voxel::Air);
+    chunk.set(InChunkPos::new(UVec3::new(15, 0, 0)).unwrap(), Voxel::Air);
+
+    let chunk_mesh = meshes.add(chunk.generate_mesh());
+    commands.spawn((
+        MaterialMeshBundle {
+            mesh: chunk_mesh,
+            material: chunk_material,
+            ..default()
+        },
+        Wireframe,
+    ));
 }
