@@ -1,6 +1,6 @@
 # A Whole New World
 
-[![Build Release](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml/badge.svg?branch=main])](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml)
+[![Build Release](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml/badge.svg)](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml)
 
 *by CJ*
 
