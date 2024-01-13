@@ -42,9 +42,10 @@ impl WorldNoiseSettings {
                     definitely_empty = false;
                     chunk.voxels.set(
                         InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
-                        match (y as f64) < (height - 3.0) {
-                            true => Voxel::Stone,
-                            false => Voxel::Grass,
+                        match y as f64 {
+                            y if y < (height - 6.0) => Voxel::Stone,
+                            y if y < (height - 3.0) => Voxel::Dirt,
+                            _ => Voxel::Grass,
                         },
                     );
                 }

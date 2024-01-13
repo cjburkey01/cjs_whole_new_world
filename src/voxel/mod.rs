@@ -126,24 +126,21 @@ pub enum Voxel {
     #[default]
     Air,
     Stone,
-    #[allow(unused)]
     Grass,
+    Dirt,
 }
 
 impl Voxel {
     pub fn does_cull_as_solid(&self) -> bool {
-        match *self {
-            Voxel::Air => false,
-            Voxel::Stone => true,
-            Voxel::Grass => true,
-        }
+        *self != Voxel::Air
     }
 
     pub fn atlas_index(&self) -> u32 {
-        match self {
+        match *self {
             Voxel::Air => 0,
             Voxel::Stone => 1,
             Voxel::Grass => 0,
+            Voxel::Dirt => 2,
         }
     }
 }
