@@ -2,18 +2,20 @@ use crate::voxel::{Chunk, InChunkPos, Voxel, CHUNK_WIDTH};
 use bevy::prelude::*;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
-    Fbm, MultiFractal, Simplex,
+    Fbm, MultiFractal, Perlin,
 };
 
 #[derive(Resource, Clone)]
 pub struct WorldNoiseSettings {
-    fbm: Fbm<Simplex>,
+    fbm: Fbm<Perlin>,
 }
 
 impl WorldNoiseSettings {
     pub fn new(seed: u32) -> Self {
         Self {
-            fbm: Fbm::<Simplex>::new(seed).set_frequency(0.01),
+            fbm: Fbm::<Perlin>::new(seed)
+                .set_frequency(0.02)
+                .set_persistence(0.45),
         }
     }
 

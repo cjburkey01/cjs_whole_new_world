@@ -4,9 +4,12 @@
 
 *by CJ*
 
-hello, i need ci to run.
+### Screenshots
+
+:) henlo wrld
 
 ![Screenshot of v0.0.1 terrain](./screenshots/v0.0.1.png)
 
+![Screenshot of v0.0.2 terrain with fixed textures](./screenshots/v0.0.2.png)
 
-![Screenshot of v0.0.2 terrain with fixed textures](./screenshots/v0.0.2-1.png)
+![Screenshot of v0.0.3 terrain with better noise](./screenshots/v0.0.3.png)

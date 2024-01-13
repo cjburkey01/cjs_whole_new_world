@@ -18,7 +18,7 @@ fn main() {
         .add_plugins(
             DefaultPlugins
                 .set(LogPlugin {
-                    filter: "wgpu=warn,naga=warn,bevy_render=info,bevy_app::plugin_group=info"
+                    filter: "wgpu=warn,naga=warn,bevy_render=info,bevy_app::plugin_group=info,bevy_ecs::world::entity_ref=info"
                         .to_string(),
                     level: Level::DEBUG,
                 })
@@ -75,7 +75,7 @@ fn init_world(mut commands: Commands) {
             },
             ..default()
         },
-        loading::ChunkLoader::new(3),
+        loading::ChunkLoader::new(2),
         loading::ChunkPos::default(),
     ));
 
