@@ -3,7 +3,6 @@ mod voxel;
 
 use bevy::{
     log::{Level, LogPlugin},
-    pbr::wireframe::WireframePlugin,
     prelude::*,
 };
 use leafwing_input_manager::prelude::*;
@@ -31,7 +30,6 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(WireframePlugin)
         .add_plugins((
             InputManagerPlugin::<control::input::PlyAction>::default(),
             control::PlyControlPlugin,
@@ -49,11 +47,7 @@ fn main() {
         .run();
 }
 
-fn init_world(
-    mut commands: Commands,
-    // mut meshes: ResMut<Assets<Mesh>>,
-    // mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn init_world(mut commands: Commands) {
     // Lights
     commands.spawn(DirectionalLightBundle {
         transform: Transform::from_translation(Vec3::new(2.0, 3.0, 4.0))
@@ -76,43 +70,16 @@ fn init_world(
                     far: 1000.0,
                     ..default()
                 }),
-                transform: Transform::from_translation(Vec3::new(0.0, 10.0, 15.0)),
+                transform: Transform::from_xyz(0.0, 10.0, 15.0),
                 ..default()
             },
             ..default()
         },
-        loading::ChunkLoader::new(2),
+        loading::ChunkLoader::new(3),
+        loading::ChunkPos::default(),
     ));
 
     // Action
 
-    // Center debug cubes
-    /*
-        let cube_mesh = meshes.add(Cube::new(0.8).into());
-
-        commands.spawn(MaterialMeshBundle {
-            mesh: cube_mesh.clone(),
-            material: materials.add(Color::WHITE.into()),
-            transform: Transform::from_translation(Vec3::ZERO),
-            ..default()
-        });
-        commands.spawn(MaterialMeshBundle {
-            mesh: cube_mesh.clone(),
-            material: materials.add(Color::RED.into()),
-            transform: Transform::from_translation(Vec3::X),
-            ..default()
-        });
-        commands.spawn(MaterialMeshBundle {
-            mesh: cube_mesh.clone(),
-            material: materials.add(Color::GREEN.into()),
-            transform: Transform::from_translation(Vec3::Y),
-            ..default()
-        });
-        commands.spawn(MaterialMeshBundle {
-            mesh: cube_mesh.clone(),
-            material: materials.add(Color::BLUE.into()),
-            transform: Transform::from_translation(Vec3::Z),
-            ..default()
-        });
-    */
+    // :)
 }

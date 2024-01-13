@@ -57,8 +57,8 @@ fn fragment(
     pbr_vert_out.world_position = input.world_position;
     pbr_vert_out.world_normal = input.world_normal;
 
-    var uv_start: vec2<f32> = vec2<f32>(f32(input.atlas_index % my_extended_material.atlas_width), f32(input.atlas_index / my_extended_material.atlas_width)) / f32(my_extended_material.atlas_width);
-    pbr_vert_out.uv = uv_start + (fract(input.uv) / f32(my_extended_material.atlas_width));
+    var uv_start: vec2<f32> = vec2<f32>(f32(input.atlas_index % my_extended_material.atlas_width), f32(input.atlas_index / my_extended_material.atlas_width));
+    pbr_vert_out.uv = (uv_start + fract(input.uv)) / f32(my_extended_material.atlas_width);
 
     // Generate a PbrInput struct from the StandardMaterial bindings
     var pbr_input = pbr_input_from_standard_material(pbr_vert_out, is_front);

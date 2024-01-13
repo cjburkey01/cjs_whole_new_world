@@ -5,7 +5,7 @@ use noise::{
     Fbm, MultiFractal, Simplex,
 };
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct WorldNoiseSettings {
     fbm: Fbm<Simplex>,
 }

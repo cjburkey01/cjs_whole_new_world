@@ -1,5 +1,7 @@
 # A Whole New World
 
+[![Build Release](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml/badge.svg?branch=main&event=push)](https://github.com/cjburkey01/cjs_whole_new_world/actions/workflows/release.yml)
+
 *by CJ*
 
 hello, i need ci to run.

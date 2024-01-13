@@ -1,30 +1,60 @@
 use super::chunk_map::*;
-use crate::{
-    plugin::voxel_material::ChunkMaterialRes,
-    voxel::{world_noise::WorldNoiseSettings, CHUNK_WIDTH},
-};
+use crate::voxel::CHUNK_WIDTH;
 use bevy::prelude::*;
 
 pub struct ChunkLoadingPlugin;
 
 impl Plugin for ChunkLoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LoadingMap>()
-            .add_systems(Update, on_loader_position_changed);
+        app.init_resource::<LoadingMap>().add_systems(
+            Update,
+            (on_update_translate_chunk_pos, on_loader_position_changed),
+        );
     }
 }
 
-#[derive(Debug, Component, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Component, Clone, Eq, PartialEq)]
 pub struct ChunkLoader {
     pub radius: u32,
-    last_chunk: IVec3,
 }
 
 impl ChunkLoader {
     pub fn new(radius: u32) -> Self {
-        Self {
-            radius,
-            last_chunk: IVec3::MAX,
+        Self { radius }
+    }
+}
+
+#[derive(Default, Debug, Component, Copy, Clone, Eq, PartialEq)]
+pub struct ChunkPos {
+    pub pos: IVec3,
+}
+
+impl ChunkPos {
+    pub fn transform(&self) -> Transform {
+        Transform::from_translation((self.pos * CHUNK_WIDTH as i32).as_vec3())
+    }
+}
+
+#[allow(clippy::type_complexity)]
+fn on_update_translate_chunk_pos(
+    mut query: Query<
+        (Entity, &Transform, &mut ChunkPos),
+        Or<(Added<ChunkPos>, (Changed<Transform>, With<ChunkPos>))>,
+    >,
+) {
+    let mut changed = vec![];
+    for (entity, transform, chunk_pos) in query.iter() {
+        let current_chunk_pos = (transform.translation / CHUNK_WIDTH as f32)
+            .floor()
+            .as_ivec3();
+        if current_chunk_pos != chunk_pos.pos {
+            changed.push((entity, current_chunk_pos));
+        }
+    }
+    // I think this means we won't see anything change if the chunk hasn't changed.
+    for (ent, new_chunk) in changed {
+        if let Ok((_, _, mut old_chunk_pos)) = query.get_mut(ent) {
+            old_chunk_pos.pos = new_chunk;
         }
     }
 }
@@ -37,58 +67,22 @@ pub struct LoadingMap {}
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn on_loader_position_changed(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    material: Res<ChunkMaterialRes>,
-    world_noise: Res<WorldNoiseSettings>,
     mut chunks: ResMut<Chunks>,
-    mut entities: ResMut<ChunkEntities>,
-    mut changed: Query<
-        (&Transform, &mut ChunkLoader),
-        Or<(Changed<Transform>, Added<ChunkLoader>)>,
-    >,
-    existing_mesh_chunks: Query<&MeshedChunk, Without<ChunkLoader>>,
+    changed: Query<(&ChunkPos, &ChunkLoader), Or<(Added<ChunkLoader>, Changed<ChunkPos>)>>,
 ) {
-    let w = CHUNK_WIDTH as i32;
+    for (ChunkPos { pos: chunk_pos }, loader) in changed.iter() {
+        debug!("loader changed to chunk {chunk_pos:?}");
 
-    for (transform, mut loader) in changed.iter_mut() {
-        let current_chunk_pos = (transform.translation / w as f32).floor().as_ivec3();
-        if current_chunk_pos != loader.last_chunk {
-            debug!(
-                "chunk change to {:?} from {:?} at {:?}",
-                current_chunk_pos, loader.last_chunk, transform.translation
-            );
-            loader.last_chunk = current_chunk_pos;
-
-            // Build concentric rings
-            for r in 0..=(loader.radius as i32) {
-                for z in -r..=r {
-                    for x in -r..=r {
-                        for y in -2..=2 {
-                            let chunk_pos = current_chunk_pos + IVec3::new(x, y, z);
-                            // From `chunk_map`
-                            gen_chunk(
-                                &mut commands,
-                                &world_noise,
-                                &mut chunks,
-                                &mut entities,
-                                chunk_pos,
-                            );
-                            mesh_chunk(
-                                &mut commands,
-                                &chunks,
-                                &entities,
-                                chunk_pos,
-                                &mut meshes,
-                                &material.0,
-                                &existing_mesh_chunks,
-                                false,
-                            );
-                        }
+        // Build concentric rings
+        for r in 0..=(loader.radius as i32) {
+            for z in -r..=r {
+                for x in -r..=r {
+                    for y in -r..=r {
+                        let offset_chunk_pos = *chunk_pos + IVec3::new(x, y, z);
+                        chunks.request_chunk_gen_render(&mut commands, offset_chunk_pos);
                     }
                 }
             }
-
-            // TODO: UPDATE LOADING MAP
         }
     }
 }

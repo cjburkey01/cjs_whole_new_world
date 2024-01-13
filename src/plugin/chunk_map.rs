@@ -1,82 +1,158 @@
-use crate::voxel::{world_noise::WorldNoiseSettings, Chunk, CHUNK_WIDTH};
-use bevy::{ecs::query::ReadOnlyWorldQuery, pbr::wireframe::Wireframe, prelude::*, utils::HashMap};
+use crate::{
+    plugin::{loading::ChunkPos, voxel_material::ChunkMaterialRes},
+    voxel::{world_noise::WorldNoiseSettings, Chunk},
+};
+use bevy::{
+    prelude::*,
+    tasks::{AsyncComputeTaskPool, Task},
+    utils::{hashbrown::hash_map::Entry, HashMap},
+};
+use futures_lite::future::{block_on, poll_once};
 
 pub struct ChunkMapPlugin;
 
 impl Plugin for ChunkMapPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ChunkEntities>()
-            .init_resource::<Chunks>();
+        app.init_resource::<Chunks>().add_systems(
+            Update,
+            (
+                query_changed_chunk_states_system,
+                query_generated_chunk_system,
+                query_rendered_chunk_system,
+            ),
+        );
     }
+}
+
+#[derive(Component, Debug, Copy, Clone, Eq, PartialEq)]
+pub enum ChunkState {
+    Generating,
+    Rendering,
+    Visible,
 }
 
 /// Keeps track of all chunk states in the world.
 #[derive(Default, Resource)]
-pub struct Chunks(pub HashMap<IVec3, Chunk>);
+pub struct Chunks {
+    entities: HashMap<IVec3, Entity>,
+    chunks: HashMap<IVec3, Chunk>,
+}
 
-/// Keeps track of all chunk entities in the world.
-#[derive(Default, Resource)]
-pub struct ChunkEntities(pub HashMap<IVec3, Entity>);
+impl Chunks {
+    // Returns true if the chunk was *not* already initialized
+    pub fn request_chunk_gen_render(&mut self, commands: &mut Commands, pos: IVec3) -> bool {
+        match self.entities.entry(pos) {
+            Entry::Occupied(_) => {
+                // We shouldn't ever need to regenerate a chunk.
+                // We might want to re-mesh it, but we don't have to regenerate.
+                // commands.entity(*entry.get()).insert(ChunkState::Generating);
+                false
+            }
+            Entry::Vacant(entry) => {
+                let chunk_pos = ChunkPos { pos };
+                entry.insert(
+                    commands
+                        .spawn((
+                            TransformBundle::from_transform(chunk_pos.transform()),
+                            chunk_pos,
+                            ChunkState::Generating,
+                        ))
+                        .id(),
+                );
+                true
+            }
+        }
+    }
 
-#[derive(Debug, Component, Copy, Clone, Eq, PartialEq)]
-pub struct GeneratedChunk(pub IVec3);
-
-#[derive(Debug, Component, Copy, Clone, Eq, PartialEq)]
-pub struct MeshedChunk(pub IVec3);
-
-pub fn gen_chunk(
-    commands: &mut Commands,
-    world_noise: &WorldNoiseSettings,
-    chunks: &mut Chunks,
-    entities: &mut ChunkEntities,
-    chunk_pos: IVec3,
-) {
-    // Make sure this chunk hasn't already been generated.
-    if !chunks.0.contains_key(&chunk_pos) {
-        let chunk = world_noise.build_heightmap_chunk(chunk_pos);
-        chunks.0.insert(chunk_pos, chunk);
-        let entity = commands
-            .spawn((
-                GeneratedChunk(chunk_pos),
-                TransformBundle::from_transform(Transform::from_translation(
-                    (chunk_pos * CHUNK_WIDTH as i32).as_vec3(),
-                )),
-            ))
-            .id();
-        entities.0.insert(chunk_pos, entity);
+    pub fn chunk_at(&self, chunk_pos: IVec3) -> Option<&Chunk> {
+        self.chunks.get(&chunk_pos)
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn mesh_chunk<F: ReadOnlyWorldQuery, M: Material>(
-    commands: &mut Commands,
-    chunks: &Chunks,
-    entities: &ChunkEntities,
-    chunk_pos: IVec3,
-    meshes: &mut Assets<Mesh>,
-    material: &Handle<M>,
-    existing_mesh_chunks: &Query<&MeshedChunk, F>,
-    wireframe: bool,
+#[derive(Component)]
+pub struct GenTask(pub Task<Chunk>);
+
+#[derive(Component)]
+pub struct RenderTask(pub Task<Mesh>);
+
+/// Loop through all chunks that have [ChunkState::Generating] or
+/// [ChunkState::Rendering] but don't have an associated generating task,
+/// spawning a generation/render task for them.
+#[allow(clippy::type_complexity)]
+fn query_changed_chunk_states_system(
+    mut commands: Commands,
+    chunk_map: Res<Chunks>,
+    noise: Res<WorldNoiseSettings>,
+    chunks: Query<
+        (Entity, &ChunkPos, &ChunkState),
+        (
+            Without<GenTask>,
+            Without<RenderTask>,
+            Or<(Added<ChunkState>, Changed<ChunkState>)>,
+        ),
+    >,
 ) {
-    // Make sure this chunk is generated and doesn't already have a mesh
-    if entities.0.contains_key(&chunk_pos)
-        && existing_mesh_chunks.get(entities.0[&chunk_pos]).is_err()
-    {
-        let chunk = &chunks.0[&chunk_pos];
-        let mesh = meshes.add(chunk.generate_mesh());
-        let material = Handle::clone(material);
-        let mut entity = commands.entity(entities.0[&chunk_pos]);
-        let ent = entity.try_insert((
-            MeshedChunk(chunk_pos),
-            MaterialMeshBundle {
-                mesh,
-                material,
-                transform: Transform::from_translation((chunk_pos * CHUNK_WIDTH as i32).as_vec3()),
-                ..default()
-            },
-        ));
-        if wireframe {
-            ent.insert(Wireframe);
+    let pool = AsyncComputeTaskPool::get();
+
+    for (entity, chunk_pos, state) in chunks.iter() {
+        match state {
+            ChunkState::Generating => {
+                let noise = noise.clone();
+                let pos = chunk_pos.pos;
+                commands.entity(entity).insert(GenTask(
+                    pool.spawn(async move { noise.build_heightmap_chunk(pos) }),
+                ));
+            }
+            ChunkState::Rendering => {
+                if let Some(chunk) = chunk_map.chunk_at(chunk_pos.pos) {
+                    let cloned_chunk = chunk.clone();
+                    commands.entity(entity).insert(RenderTask(
+                        AsyncComputeTaskPool::get()
+                            .spawn(async move { cloned_chunk.generate_mesh() }),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Loop through all chunks with a generation task,
+fn query_generated_chunk_system(
+    mut commands: Commands,
+    mut chunk_map: ResMut<Chunks>,
+    mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut GenTask)>,
+) {
+    for (entity, chunk_pos, _state, mut task) in chunks.iter_mut() {
+        if let Some(chunk) = block_on(poll_once(&mut task.0)) {
+            chunk_map.chunks.insert(chunk_pos.pos, chunk);
+            commands
+                .entity(entity)
+                .remove::<GenTask>()
+                .insert(ChunkState::Rendering);
+        }
+    }
+}
+
+/// Loop through all chunks with a render task,
+fn query_rendered_chunk_system(
+    mut commands: Commands,
+    material: Res<ChunkMaterialRes>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut RenderTask)>,
+) {
+    for (entity, chunk_pos, _state, mut task) in chunks.iter_mut() {
+        if let Some(mesh) = block_on(poll_once(&mut task.0)) {
+            commands
+                .entity(entity)
+                .remove::<RenderTask>()
+                .insert(ChunkState::Visible)
+                .insert(MaterialMeshBundle {
+                    mesh: meshes.add(mesh),
+                    material: Handle::clone(&material.0),
+                    transform: chunk_pos.transform(),
+                    ..default()
+                });
         }
     }
 }

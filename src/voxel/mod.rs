@@ -156,6 +156,12 @@ impl Default for VoxelContainer {
     }
 }
 
+impl Clone for VoxelContainer {
+    fn clone(&self) -> Self {
+        Self(Box::new(*self.0.as_ref()))
+    }
+}
+
 impl Deref for VoxelContainer {
     type Target = [Voxel];
 
@@ -193,7 +199,7 @@ impl VoxelContainer {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Chunk {
     voxels: VoxelContainer,
     pub definitely_empty: bool,
