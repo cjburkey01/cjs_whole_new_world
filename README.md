@@ -13,3 +13,5 @@
 ![Screenshot of v0.0.2 terrain with fixed textures](./screenshots/v0.0.2.png)
 
 ![Screenshot of v0.0.3 terrain with better noise](./screenshots/v0.0.3.png)
+
+![Screenshot of v0.0.4 larger-ish terrain](./screenshots/v0.0.4.png)
