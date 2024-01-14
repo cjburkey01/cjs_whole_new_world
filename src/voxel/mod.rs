@@ -1,6 +1,6 @@
 pub mod world_noise;
 
-use crate::plugin::voxel_material::ATTRIBUTE_ATLAS_INDEX;
+use crate::plugin::voxel_material::ATTRIBUTE_HACK_VERT;
 use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
@@ -8,9 +8,7 @@ use bevy::{
 use bitvec::prelude::*;
 use std::ops::{Deref, DerefMut};
 
-// TODO: WHY IS AN EXTRA QUAD GENERATED WHEN THE NORMAL IS NEGATIVE??
-
-pub const CHUNK_WIDTH: u32 = 32;
+pub const CHUNK_WIDTH: u32 = 31;
 pub const CHUNK_SQUARE: u32 = CHUNK_WIDTH * CHUNK_WIDTH;
 pub const CHUNK_CUBE: u32 = CHUNK_SQUARE * CHUNK_WIDTH;
 
@@ -453,10 +451,10 @@ impl Chunk {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Quad {
-    start: UVec2,
-    end_excl: UVec2,
-    voxel: Voxel,
+pub struct Quad {
+    pub start: UVec2,
+    pub end_excl: UVec2,
+    pub voxel: Voxel,
 }
 
 impl Quad {
@@ -470,18 +468,37 @@ impl Quad {
 }
 
 #[derive(Default)]
-struct TmpMesh {
+pub struct TmpMesh {
     verts: Vec<Vec3>,
+    hacks: Vec<UVec2>,
     inds: Vec<u16>,
-    uvs: Vec<Vec2>,
-    norms: Vec<Vec3>,
-    atlas_indices: Vec<u32>,
+}
+
+fn iter_to_array<Element, const N: usize>(mut iter: impl Iterator<Item = Element>) -> [Element; N] {
+    // Here I use `()` to make array zero-sized -> no real use in runtime.
+    // `map` creates new array, which we fill by values of iterator.
+    let res: [_; N] = std::array::from_fn(|_| iter.next().unwrap());
+    // Ensure that iterator finished
+    assert!(matches!(iter.next(), None));
+    res
 }
 
 impl TmpMesh {
-    pub fn add_quad(&mut self, slice_dir: SliceDirection, slice_depth: u32, quad: Quad) {
-        // We are at the zero Z, moving sideways along positive-X and
-        // vertically along positive-Y.
+    /// Hack layout:
+    ///                       Negative normal?
+    ///                              \_/
+    /// U32:(xxxxxx,yy)(yyyy,zzzz)(zz,nnnn,uu)(uuuvvvvv)
+    ///      ^----^ ^------^ ^------^  ^-^ ^---^  ^---^
+    ///        X       Y         Z    Norml  U      V
+    /// 3x6 bits = 0-32** for each position component
+    /// 3 bits for each axis of normal, 1 bit for negative.
+    /// 2x5 bits = 0-31 for quad size to determine UV
+    /// 4 bytes for U32 to represent atlas index
+    pub fn build_hack_verts(
+        slice_dir: SliceDirection,
+        slice_depth: u32,
+        quad: Quad,
+    ) -> [(Vec3, u32); 4] {
         // Positive X cross positive Y is positive Z, which we can
         // consider the the normal, making forward -Z. From this
         // perspective, we are meshing the quads located along Z=1.
@@ -492,66 +509,75 @@ impl TmpMesh {
         // Also, we need to go counter-clockwise as if the viewport is
         // looking along negative-Z, so that's a thing to look out for.
         // i guess.
-        // When we extend this behavior to other directions, we'll need
-        // to take all this shit into account.
 
         let Quad {
             start,
             end_excl: end,
-            voxel,
+            ..
         } = quad;
 
-        let start_ind = self.verts.len() as u16;
+        let start_vert = start;
+        let end_vert = end;
+        let low_right_vert = UVec2::new(end.x, start.y);
+        let high_left_vert = UVec2::new(start.x, end.y);
 
-        // Add vertices
-        {
-            let start_vert = start;
-            let end_vert = end;
-            let low_right_vert = UVec2::new(end.x, start.y);
-            let high_left_vert = UVec2::new(start.x, end.y);
-            self.verts.append(
-                &mut [start_vert, end_vert, low_right_vert, high_left_vert]
-                    .into_iter()
-                    // TODO: set Z to 0.0 if cross product of bases is positive.
-                    .map(|v| {
-                        let mut pos = slice_dir.exclusive_transform(slice_depth, v).as_vec3();
+        let size = (end.as_ivec2() - start.as_ivec2()).abs().as_uvec2();
+        let (high_left_uv, low_right_uv) = (UVec2::ZERO, size);
+        let end_uv = UVec2::new(low_right_uv.x, high_left_uv.y);
+        let start_uv = UVec2::new(high_left_uv.x, low_right_uv.y);
 
-                        if !slice_dir.right.is_positive() {
-                            pos -= slice_dir.right.to_ivec3().as_vec3();
-                        }
-                        if !slice_dir.up.is_positive() {
-                            pos -= slice_dir.up.to_ivec3().as_vec3();
-                        }
+        let normal = slice_dir.normal().to_ivec3();
+        let normal_neg = normal.min_element() < 0;
+        let normal = normal.abs().as_uvec3();
+        let normal_bits = (normal.x << 2) | (normal.y << 1) | (normal.z);
 
-                        match slice_dir.normal().is_positive() {
-                            true => pos + slice_dir.normal().to_ivec3().as_vec3(),
-                            false => pos,
-                        }
-                    })
-                    .collect(),
-            );
-        }
+        iter_to_array(
+            [
+                (start_vert, start_uv),
+                (end_vert, end_uv),
+                (low_right_vert, low_right_uv),
+                (high_left_vert, high_left_uv),
+            ]
+            .into_iter()
+            .map(|(v, uv)| {
+                let mut pos = slice_dir.exclusive_transform(slice_depth, v);
 
-        let size = (end.as_vec2() - start.as_vec2()).abs();
-        // Add UVs for each vertex
-        {
-            let epsilon = Vec2::splat(0.001);
-            let (min_uv, max_uv) = (Vec2::ZERO, size); //voxel.uv_min_max();
-            let high_left_uv = min_uv + epsilon;
-            let low_right_uv = max_uv - epsilon;
-            let end_uv = Vec2::new(low_right_uv.x, high_left_uv.y);
-            let start_uv = Vec2::new(high_left_uv.x, low_right_uv.y);
-            self.uvs
-                .append(&mut vec![start_uv, end_uv, low_right_uv, high_left_uv]);
-        }
+                if !slice_dir.right.is_positive() {
+                    pos -= slice_dir.right.to_ivec3();
+                }
+                if !slice_dir.up.is_positive() {
+                    pos -= slice_dir.up.to_ivec3();
+                }
+                if slice_dir.normal().is_positive() {
+                    pos += slice_dir.normal().to_ivec3()
+                }
 
-        // Add normals
-        self.norms.append(
-            &mut [slice_dir.normal().to_ivec3().as_vec3()]
-                .into_iter()
-                .cycle()
-                .take(4)
-                .collect(),
+                let pos = pos.as_uvec3();
+
+                let mut hack = (pos.x << 26) | (pos.y << 20) | (pos.z << 14);
+                if normal_neg {
+                    hack |= 1 << 13;
+                }
+                (
+                    pos.as_vec3(),
+                    hack | (normal_bits << 10) | (uv.x << 5) | uv.y,
+                )
+            }),
+        )
+    }
+
+    pub fn add_quad(&mut self, slice_dir: SliceDirection, slice_depth: u32, quad: Quad) {
+        let start_ind = self.hacks.len() as u16;
+
+        let verts_hacks = Self::build_hack_verts(slice_dir, slice_depth, quad);
+
+        self.verts
+            .append(&mut verts_hacks.map(|(vert, _)| vert).to_vec());
+
+        self.hacks.append(
+            &mut verts_hacks
+                .map(|(_, hack)| UVec2::new(hack, quad.voxel.atlas_index()))
+                .to_vec(),
         );
 
         // Add indices to make a quad
@@ -561,25 +587,14 @@ impl TmpMesh {
                 .map(|i| start_ind + i)
                 .collect(),
         );
-
-        self.atlas_indices
-            .append(&mut [voxel.atlas_index()].into_iter().cycle().take(4).collect());
     }
 
     pub fn build(self) -> Mesh {
-        let Self {
-            verts,
-            inds,
-            uvs,
-            norms,
-            atlas_indices,
-        } = self;
+        let Self { verts, inds, hacks } = self;
 
         Mesh::new(PrimitiveTopology::TriangleList)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, verts)
-            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, norms)
-            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-            .with_inserted_attribute(ATTRIBUTE_ATLAS_INDEX, atlas_indices)
+            .with_inserted_attribute(ATTRIBUTE_HACK_VERT, hacks)
             .with_indices(Some(Indices::U16(inds)))
     }
 }

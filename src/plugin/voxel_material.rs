@@ -31,11 +31,7 @@ fn add_chunk_material_system(
     asset_server: Res<AssetServer>,
 ) {
     let settings = move |s: &mut ImageLoaderSettings| {
-        s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-            address_mode_u: ImageAddressMode::Repeat,
-            address_mode_v: ImageAddressMode::Repeat,
-            ..ImageSamplerDescriptor::nearest()
-        });
+        s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::nearest());
     };
 
     let handle = materials.add(ExtendedMaterial {
@@ -55,8 +51,8 @@ pub struct VoxelChunkMaterial {
     atlas_width: u32,
 }
 
-pub const ATTRIBUTE_ATLAS_INDEX: MeshVertexAttribute =
-    MeshVertexAttribute::new("AtlasIndex", 8937522, VertexFormat::Uint32);
+pub const ATTRIBUTE_HACK_VERT: MeshVertexAttribute =
+    MeshVertexAttribute::new("HackAndAtlasIndex", 1245258933957, VertexFormat::Uint32x2);
 
 impl MaterialExtension for VoxelChunkMaterial {
     fn vertex_shader() -> ShaderRef {
@@ -74,10 +70,10 @@ impl MaterialExtension for VoxelChunkMaterial {
         _key: MaterialExtensionKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
         let vertex_layout = layout.get_layout(&[
+            // TODO: FIND A WAY TO STOP PROVIDING THE POSITION.
+            //       I DON'T WANT TO HAVE TO MAKE A COPY OF HALF THE PBR PIPELINE.
             Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
-            Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
-            Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
-            ATTRIBUTE_ATLAS_INDEX.at_shader_location(3),
+            ATTRIBUTE_HACK_VERT.at_shader_location(1),
         ])?;
         descriptor.vertex.buffers = vec![vertex_layout];
         Ok(())
