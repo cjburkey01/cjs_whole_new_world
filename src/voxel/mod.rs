@@ -6,6 +6,7 @@ use bevy::{
     render::mesh::{Indices, PrimitiveTopology},
 };
 use bitvec::prelude::*;
+use itertools::iproduct;
 use std::ops::{Deref, DerefMut};
 
 pub const CHUNK_WIDTH: u32 = 31;
@@ -259,19 +260,17 @@ impl Chunk {
                 },
             ];
 
-            for dir in mesh_directions {
-                for z in 0..CHUNK_WIDTH {
-                    self.mesh_slice(
-                        dir,
-                        z,
-                        &mut tmp_mesh,
-                        if z < CHUNK_WIDTH - 1 {
-                            self.get_solid_bits_slice(dir, z + 1)
-                        } else {
-                            None
-                        },
-                    );
-                }
+            for (dir, z) in iproduct!(mesh_directions, 0..CHUNK_WIDTH) {
+                self.mesh_slice(
+                    dir,
+                    z,
+                    &mut tmp_mesh,
+                    if z < CHUNK_WIDTH - 1 {
+                        self.get_solid_bits_slice(dir, z + 1)
+                    } else {
+                        None
+                    },
+                );
             }
         }
 
@@ -284,15 +283,12 @@ impl Chunk {
         slice_depth: u32,
     ) -> Option<BitVec> {
         let mut bit_slice = BitVec::repeat(false, CHUNK_CUBE as usize);
-        for y in 0..CHUNK_WIDTH {
-            let slice_row_index = y * CHUNK_WIDTH;
-            for x in 0..CHUNK_WIDTH {
-                let voxel = self.voxels.at(InChunkPos::new(
-                    slice_direction.transform(slice_depth, UVec2::new(x, y))?,
-                )?);
-                let slice_index = slice_row_index + x;
-                bit_slice.set(slice_index as usize, voxel.does_cull_as_solid());
-            }
+        for (y, x) in iproduct!(0..CHUNK_WIDTH, 0..CHUNK_WIDTH) {
+            let voxel = self.voxels.at(InChunkPos::new(
+                slice_direction.transform(slice_depth, UVec2::new(x, y))?,
+            )?);
+            let slice_index = y * CHUNK_WIDTH + x;
+            bit_slice.set(slice_index as usize, voxel.does_cull_as_solid());
         }
         Some(bit_slice)
     }

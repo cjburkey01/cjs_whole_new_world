@@ -36,6 +36,7 @@ fn main() {
             voxel_material::VoxelMaterialPlugin,
             loading::ChunkLoadingPlugin,
             chunk_map::ChunkMapPlugin,
+            better_chunk_map::Plugin3000,
         ))
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
@@ -75,7 +76,7 @@ fn init_world(mut commands: Commands) {
             },
             ..default()
         },
-        loading::ChunkLoader::new(4),
+        loading::ChunkLoader::new(6),
         loading::ChunkPos::default(),
     ));
 

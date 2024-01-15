@@ -11,6 +11,8 @@ leafwing-input-manager = "0.11.2"
 noise = "0.8.2"
 log = "0.4.20"
 futures-lite = "2.2.0"
+priority-queue = "1.3.2"
+itertools = "0.12.0"
 
 [profile.dev]
 opt-level = 1

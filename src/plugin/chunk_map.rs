@@ -1,7 +1,8 @@
 use crate::{
     plugin::{
+        better_chunk_map::BetterChunkLoaderManager3000,
         loading::{ChunkLoader, ChunkPos},
-        voxel_material::ChunkMaterialRes,
+        voxel_material::{ChunkMaterialRes, VoxelChunkMaterial, VoxelExtendedMaterial},
     },
     voxel::{world_noise::WorldNoiseSettings, Chunk},
 };
@@ -21,9 +22,12 @@ impl Plugin for ChunkMapPlugin {
         app.init_resource::<Chunks>().add_systems(
             Update,
             (
-                query_changed_chunk_states_system,
-                query_generated_chunk_system,
-                query_rendered_chunk_system,
+                (
+                    query_deleting_chunks,
+                    query_changed_chunk_states_system,
+                    (query_generated_chunk_system, query_rendered_chunk_system),
+                )
+                    .chain(),
                 query_distant_chunks_system.run_if(on_timer(Duration::from_millis(500))),
             ),
         );
@@ -79,6 +83,14 @@ impl Chunks {
             }
         }
     }
+
+    pub fn chunks(&self) -> &HashMap<IVec3, Chunk> {
+        &self.chunks
+    }
+
+    pub fn entities(&self) -> &HashMap<IVec3, Entity> {
+        &self.entities
+    }
 }
 
 #[derive(Component)]
@@ -86,6 +98,22 @@ pub struct GenTask(pub Task<Chunk>);
 
 #[derive(Component)]
 pub struct RenderTask(pub Task<Mesh>);
+
+fn query_deleting_chunks(
+    mut commands: Commands,
+    mut chunk_map: ResMut<Chunks>,
+    mut three_k: ResMut<BetterChunkLoaderManager3000>,
+    chunks: Query<(Entity, &ChunkPos, &ChunkState), Changed<ChunkState>>,
+) {
+    for (entity, ChunkPos { pos }, state) in chunks.iter() {
+        if *state == ChunkState::Deleting {
+            commands.entity(entity).despawn();
+            chunk_map.chunks.remove(pos);
+            chunk_map.entities.remove(pos);
+            three_k.unload(*pos);
+        }
+    }
+}
 
 /// Loop through all chunks that have [ChunkState::Generating] or
 /// [ChunkState::Rendering] but don't have an associated generating task,
@@ -104,23 +132,32 @@ fn query_changed_chunk_states_system(
             ChunkState::Generating => {
                 let noise = noise.clone();
                 let pos = *pos;
-                commands.entity(entity).insert(GenTask(
-                    pool.spawn(async move { noise.build_heightmap_chunk(pos) }),
-                ));
-            }
-            ChunkState::Rendering => {
-                if let Some(chunk) = chunk_map.chunks.get(pos) {
-                    let cloned_chunk = chunk.clone();
-                    commands.entity(entity).insert(RenderTask(
-                        AsyncComputeTaskPool::get()
-                            .spawn(async move { cloned_chunk.generate_mesh() }),
+                if chunk_map
+                    .entities
+                    .get(&pos)
+                    .map(|e| *e == entity)
+                    .unwrap_or(false)
+                {
+                    commands.entity(entity).insert(GenTask(
+                        pool.spawn(async move { noise.build_heightmap_chunk(pos) }),
                     ));
                 }
             }
-            ChunkState::Deleting => {
-                commands.entity(entity).despawn();
-                chunk_map.chunks.remove(pos);
-                chunk_map.entities.remove(pos);
+            ChunkState::Rendering => {
+                if chunk_map
+                    .entities
+                    .get(pos)
+                    .map(|e| *e == entity)
+                    .unwrap_or(false)
+                {
+                    if let Some(chunk) = chunk_map.chunks.get(pos) {
+                        let cloned_chunk = chunk.clone();
+                        commands.entity(entity).insert(RenderTask(
+                            AsyncComputeTaskPool::get()
+                                .spawn(async move { cloned_chunk.generate_mesh() }),
+                        ));
+                    }
+                }
             }
             _ => {}
         }
@@ -134,14 +171,14 @@ fn query_generated_chunk_system(
     mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut GenTask)>,
 ) {
     for (entity, chunk_pos, state, mut task) in chunks.iter_mut() {
-        if *state == ChunkState::Deleting {
-            commands.entity(entity).remove::<GenTask>();
-        } else if let Some(chunk) = block_on(poll_once(&mut task.0)) {
-            chunk_map.chunks.insert(chunk_pos.pos, chunk);
-            commands
-                .entity(entity)
-                .remove::<GenTask>()
-                .insert(ChunkState::Rendering);
+        if *state == ChunkState::Generating {
+            if let Some(chunk) = block_on(poll_once(&mut task.0)) {
+                chunk_map.chunks.insert(chunk_pos.pos, chunk);
+                commands
+                    .entity(entity)
+                    .remove::<GenTask>()
+                    .insert(ChunkState::Rendering);
+            }
         }
     }
 }
@@ -154,19 +191,19 @@ fn query_rendered_chunk_system(
     mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut RenderTask)>,
 ) {
     for (entity, chunk_pos, state, mut task) in chunks.iter_mut() {
-        if *state == ChunkState::Deleting {
-            commands.entity(entity).remove::<RenderTask>();
-        } else if let Some(mesh) = block_on(poll_once(&mut task.0)) {
-            commands
-                .entity(entity)
-                .remove::<RenderTask>()
-                .insert(ChunkState::Visible)
-                .insert(MaterialMeshBundle {
-                    mesh: meshes.add(mesh),
-                    material: Handle::clone(&material.0),
-                    transform: chunk_pos.transform(),
-                    ..default()
-                });
+        if *state == ChunkState::Rendering {
+            if let Some(mesh) = block_on(poll_once(&mut task.0)) {
+                commands
+                    .entity(entity)
+                    .remove::<RenderTask>()
+                    .insert(ChunkState::Visible)
+                    .insert(MaterialMeshBundle {
+                        mesh: meshes.add(mesh),
+                        material: Handle::clone(&material.0),
+                        transform: chunk_pos.transform(),
+                        ..default()
+                    });
+            }
         }
     }
 }
@@ -178,7 +215,8 @@ fn query_distant_chunks_system(
 ) {
     'chunks: for (entity, ChunkPos { pos: chunk_pos }) in chunks.iter() {
         for (ChunkPos { pos: loader_pos }, ChunkLoader { radius }) in loaders.iter() {
-            if chunk_pos.distance_squared(*loader_pos) < (*radius * *radius * 5) as i32 {
+            let diameter = *radius * 2;
+            if chunk_pos.distance_squared(*loader_pos) < (diameter * diameter + 2) as i32 {
                 continue 'chunks;
             }
         }

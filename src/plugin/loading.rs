@@ -6,14 +6,11 @@ pub struct ChunkLoadingPlugin;
 
 impl Plugin for ChunkLoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LoadingMap>().add_systems(
-            Update,
-            (on_update_translate_chunk_pos, on_loader_position_changed),
-        );
+        app.add_systems(Update, on_update_translate_chunk_pos);
     }
 }
 
-#[derive(Default, Debug, Component, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Component, Copy, Clone, Eq, PartialEq)]
 pub struct ChunkLoader {
     pub radius: u32,
 }
@@ -55,34 +52,6 @@ fn on_update_translate_chunk_pos(
     for (ent, new_chunk) in changed {
         if let Ok((_, _, mut old_chunk_pos)) = query.get_mut(ent) {
             old_chunk_pos.pos = new_chunk;
-        }
-    }
-}
-
-#[derive(Default, Resource)]
-pub struct LoadingMap {}
-
-// What do you mean, clippy?
-// Eight (8) is a perfectly reasonable number of arguments.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn on_loader_position_changed(
-    mut commands: Commands,
-    mut chunks: ResMut<Chunks>,
-    changed: Query<(&ChunkPos, &ChunkLoader), Or<(Added<ChunkLoader>, Changed<ChunkPos>)>>,
-) {
-    for (ChunkPos { pos: chunk_pos }, loader) in changed.iter() {
-        debug!("loader changed to chunk {chunk_pos:?}");
-
-        // Build concentric rings
-        for r in 0..=(loader.radius as i32) {
-            for z in -r..=r {
-                for x in -r..=r {
-                    for y in -r..=r {
-                        let offset_chunk_pos = *chunk_pos + IVec3::new(x, y, z);
-                        chunks.request_chunk_gen_render(&mut commands, offset_chunk_pos);
-                    }
-                }
-            }
         }
     }
 }
