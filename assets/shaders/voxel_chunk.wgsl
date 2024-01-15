@@ -18,9 +18,7 @@ struct VoxelChunkMaterial {
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
-    @location(0)
     @location(1) @interpolate(flat) hack_vert: vec2<u32>,
-    //@location(2) @interpolate(flat) atlas_index: u32,
 };
 
 struct MyVertexOutput {

@@ -2,7 +2,7 @@ use crate::{
     plugin::{
         better_chunk_map::BetterChunkLoaderManager3000,
         loading::{ChunkLoader, ChunkPos},
-        voxel_material::{ChunkMaterialRes, VoxelChunkMaterial, VoxelExtendedMaterial},
+        voxel_material::ChunkMaterialRes,
     },
     voxel::{world_noise::WorldNoiseSettings, Chunk},
 };
@@ -84,6 +84,7 @@ impl Chunks {
         }
     }
 
+    #[allow(unused)]
     pub fn chunks(&self) -> &HashMap<IVec3, Chunk> {
         &self.chunks
     }
@@ -121,7 +122,7 @@ fn query_deleting_chunks(
 #[allow(clippy::type_complexity)]
 fn query_changed_chunk_states_system(
     mut commands: Commands,
-    mut chunk_map: ResMut<Chunks>,
+    chunk_map: Res<Chunks>,
     noise: Res<WorldNoiseSettings>,
     chunks: Query<(Entity, &ChunkPos, &ChunkState), (Without<GenTask>, Without<RenderTask>)>,
 ) {

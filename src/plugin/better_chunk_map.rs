@@ -12,7 +12,7 @@
 //
 
 use crate::plugin::{
-    chunk_map::{ChunkState, Chunks},
+    chunk_map::Chunks,
     loading::{ChunkLoader, ChunkPos},
 };
 use bevy::{prelude::*, time::common_conditions::on_timer};

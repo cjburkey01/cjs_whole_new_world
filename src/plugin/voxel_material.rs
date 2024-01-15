@@ -7,7 +7,7 @@ use bevy::{
             AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
             VertexFormat,
         },
-        texture::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
+        texture::{ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     },
 };
 
