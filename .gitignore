@@ -8,3 +8,6 @@
 # Mac
 **.DS_Store
 **/__MACOSX
+
+# Profiling
+[Ff]lamegraph.svg

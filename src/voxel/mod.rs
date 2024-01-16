@@ -15,35 +15,17 @@ pub const CHUNK_CUBE: u32 = CHUNK_SQUARE * CHUNK_WIDTH;
 
 pub const SLICE_DIRECTIONS: [SliceDirection; 6] = [
     // Normal towards +Z
-    SliceDirection {
-        right: Axis::PosX,
-        up: Axis::PosY,
-    },
+    SliceDirection::new(Axis::PosX, Axis::PosY),
     // Normal towards -Z
-    SliceDirection {
-        right: Axis::NegX,
-        up: Axis::PosY,
-    },
+    SliceDirection::new(Axis::NegX, Axis::PosY),
     // Normal towards +X
-    SliceDirection {
-        right: Axis::NegZ,
-        up: Axis::PosY,
-    },
+    SliceDirection::new(Axis::NegZ, Axis::PosY),
     // Normal towards -X
-    SliceDirection {
-        right: Axis::PosZ,
-        up: Axis::PosY,
-    },
+    SliceDirection::new(Axis::PosZ, Axis::PosY),
     // Normal towards -Y
-    SliceDirection {
-        right: Axis::PosX,
-        up: Axis::PosZ,
-    },
+    SliceDirection::new(Axis::PosX, Axis::PosZ),
     // Normal towards +Y
-    SliceDirection {
-        right: Axis::NegX,
-        up: Axis::PosZ,
-    },
+    SliceDirection::new(Axis::NegX, Axis::PosZ),
 ];
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -57,7 +39,7 @@ pub enum Axis {
 }
 
 impl Axis {
-    pub fn from_ivec3(ivec3: IVec3) -> Option<Self> {
+    pub const fn from_ivec3(ivec3: IVec3) -> Option<Self> {
         match ivec3 {
             IVec3::X => Some(Self::PosX),
             IVec3::Y => Some(Self::PosY),
@@ -69,7 +51,7 @@ impl Axis {
         }
     }
 
-    pub fn to_ivec3(self) -> IVec3 {
+    pub const fn to_ivec3(self) -> IVec3 {
         match self {
             Axis::PosX => IVec3::X,
             Axis::PosY => IVec3::Y,
@@ -80,11 +62,18 @@ impl Axis {
         }
     }
 
-    pub fn negate(self) -> Axis {
-        Self::from_ivec3(-self.to_ivec3()).unwrap()
+    pub const fn negate(self) -> Axis {
+        match self {
+            Axis::PosX => Axis::NegX,
+            Axis::PosY => Axis::NegY,
+            Axis::PosZ => Axis::NegZ,
+            Axis::NegX => Axis::PosX,
+            Axis::NegY => Axis::PosY,
+            Axis::NegZ => Axis::PosZ,
+        }
     }
 
-    pub fn is_positive(self) -> bool {
+    pub const fn is_positive(self) -> bool {
         matches!(self, Self::PosX | Self::PosY | Self::PosZ)
     }
 }
@@ -93,12 +82,30 @@ impl Axis {
 pub struct SliceDirection {
     pub right: Axis,
     pub up: Axis,
+    normal: Axis,
+}
+
+/// See [IVec3::cross]
+const fn const_cross(lhs: IVec3, rhs: IVec3) -> IVec3 {
+    IVec3 {
+        x: lhs.y * rhs.z - rhs.y * lhs.z,
+        y: lhs.z * rhs.x - rhs.z * lhs.x,
+        z: lhs.x * rhs.y - rhs.x * lhs.y,
+    }
 }
 
 impl SliceDirection {
+    pub const fn new(right: Axis, up: Axis) -> Self {
+        Self {
+            right,
+            up,
+            normal: Axis::from_ivec3(const_cross(right.to_ivec3(), up.to_ivec3()))
+                .expect("how did u get a fucked up normal with ur axes??"),
+        }
+    }
+
     pub fn normal(&self) -> Axis {
-        Axis::from_ivec3(self.right.to_ivec3().cross(self.up.to_ivec3()))
-            .expect("how did u get a fucked up normal with ur axes??")
+        self.normal
     }
 
     pub fn transform(&self, slice_depth: u32, slice_pos: UVec2) -> Option<UVec3> {
@@ -311,6 +318,8 @@ impl Chunk {
         tmp_mesh.build()
     }
 
+    // TODO: THIS IS A VERY HOT FUNCTION!
+    //       IT'S TAKING ABOUT 33% OF ALL TIME!
     pub fn get_solid_bits_slice(
         &self,
         slice_direction: SliceDirection,
