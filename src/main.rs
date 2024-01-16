@@ -78,7 +78,7 @@ fn init_world(mut commands: Commands) {
             },
             ..default()
         },
-        loading::ChunkLoader::new(7),
+        loading::ChunkLoader::new(6),
         loading::ChunkPos::default(),
     ));
 

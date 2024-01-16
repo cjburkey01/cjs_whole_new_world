@@ -27,7 +27,7 @@ impl Plugin for Plugin3000 {
         app.init_resource::<BetterChunkLoaderManager3000>()
             .add_systems(
                 Update,
-                update_requesting_map.run_if(on_timer(Duration::from_millis(240))),
+                update_requesting_map.run_if(on_timer(Duration::from_millis(250))),
             );
     }
 }
@@ -48,7 +48,7 @@ impl BetterChunkLoaderManager3000 {
 impl Default for BetterChunkLoaderManager3000 {
     fn default() -> Self {
         Self {
-            batch_size: 40,
+            batch_size: 100,
             requesting: default(),
         }
     }

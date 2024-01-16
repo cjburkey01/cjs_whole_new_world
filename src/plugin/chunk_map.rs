@@ -4,35 +4,40 @@ use crate::{
         loading::{ChunkLoader, ChunkPos},
         voxel_material::ChunkMaterialRes,
     },
-    voxel::{
-        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
-    },
+    voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
 };
 use bevy::{
     prelude::*,
-    tasks::{AsyncComputeTaskPool, Task},
+    tasks::AsyncComputeTaskPool,
     time::common_conditions::on_timer,
     utils::{hashbrown::hash_map::Entry, HashMap},
 };
-use futures_lite::future::{block_on, poll_once};
-use std::time::Duration;
+use std::{
+    sync::mpsc::{channel, Receiver, Sender},
+    time::Duration,
+};
 
 pub struct ChunkMapPlugin;
 
 impl Plugin for ChunkMapPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Chunks>().add_systems(
-            Update,
-            (
+        let (generated_sender, generated_receiver) = channel();
+        let (rendered_sender, rendered_receiver) = channel();
+
+        app.insert_resource(ChunkGeneratedSender(generated_sender))
+            .insert_non_send_resource(ChunkGeneratedReceiver(generated_receiver))
+            .insert_resource(ChunkRenderedSender(rendered_sender))
+            .insert_non_send_resource(ChunkRenderedReceiver(rendered_receiver))
+            .init_resource::<Chunks>()
+            .add_systems(
+                Update,
                 (
-                    query_deleting_chunks,
-                    query_changed_chunk_states_system,
-                    (query_generated_chunk_system, query_rendered_chunk_system),
-                )
-                    .chain(),
-                query_distant_chunks_system.run_if(on_timer(Duration::from_millis(500))),
-            ),
-        );
+                    (query_deleting_chunks, query_changed_chunk_states_system).chain(),
+                    (query_generated_chunk_system, query_rendered_chunk_system)
+                        .run_if(on_timer(Duration::from_millis(250))),
+                    query_distant_chunks_system.run_if(on_timer(Duration::from_millis(500))),
+                ),
+            );
     }
 }
 
@@ -43,6 +48,14 @@ pub enum ChunkState {
     Visible,
     Deleting,
 }
+
+#[derive(Resource)]
+pub struct ChunkGeneratedSender(pub Sender<(IVec3, Chunk)>);
+#[derive(Resource)]
+pub struct ChunkRenderedSender(pub Sender<(IVec3, Mesh)>);
+
+pub struct ChunkGeneratedReceiver(pub Receiver<(IVec3, Chunk)>);
+pub struct ChunkRenderedReceiver(pub Receiver<(IVec3, Mesh)>);
 
 /// Keeps track of all chunk states in the world.
 #[derive(Resource)]
@@ -114,10 +127,10 @@ impl Chunks {
 }
 
 #[derive(Component)]
-pub struct GenTask(pub Task<Chunk>);
+pub struct GenTask;
 
 #[derive(Component)]
-pub struct RenderTask(pub Task<Mesh>);
+pub struct RenderTask;
 
 fn query_deleting_chunks(
     mut commands: Commands,
@@ -143,40 +156,56 @@ fn query_changed_chunk_states_system(
     mut commands: Commands,
     chunk_map: Res<Chunks>,
     noise: Res<WorldNoiseSettings>,
+    generated_sender: Res<ChunkGeneratedSender>,
+    rendered_sender: Res<ChunkRenderedSender>,
     chunks: Query<(Entity, &ChunkPos, &ChunkState), (Without<GenTask>, Without<RenderTask>)>,
 ) {
     let pool = AsyncComputeTaskPool::get();
 
     for (entity, ChunkPos { pos }, state) in chunks.iter() {
+        let pos = *pos;
         match state {
             ChunkState::Generating => {
                 let noise = noise.clone();
-                let pos = *pos;
                 if chunk_map
                     .entities
                     .get(&pos)
                     .map(|e| *e == entity)
                     .unwrap_or(false)
                 {
-                    commands.entity(entity).insert(GenTask(
-                        pool.spawn(async move { noise.build_heightmap_chunk(pos) }),
-                    ));
+                    commands.entity(entity).insert(GenTask);
+
+                    let sender = generated_sender.0.clone();
+                    pool.spawn(async move {
+                        let chunk = noise.build_heightmap_chunk(pos);
+                        sender.send((pos, chunk)).unwrap();
+                    })
+                    .detach()
                 }
             }
             ChunkState::Rendering => {
                 if chunk_map
                     .entities
-                    .get(pos)
+                    .get(&pos)
                     .map(|e| *e == entity)
                     .unwrap_or(false)
                 {
-                    if let Some(chunk) = chunk_map.chunks.get(pos) {
-                        if let Some(neighbors) = chunk_map.neighbors(*pos) {
+                    if let Some(chunk) = chunk_map.chunks.get(&pos) {
+                        if let Some(neighbors) = chunk_map.neighbors(pos) {
+                            commands.entity(entity).insert(RenderTask);
+
                             let cloned_chunk = chunk.clone();
-                            commands.entity(entity).insert(RenderTask(
-                                AsyncComputeTaskPool::get()
-                                    .spawn(async move { cloned_chunk.generate_mesh(neighbors) }),
-                            ));
+                            let sender = rendered_sender.0.clone();
+                            AsyncComputeTaskPool::get()
+                                .spawn(async move {
+                                    sender
+                                        .send((
+                                            pos,
+                                            crate::voxel::generate_mesh(&cloned_chunk, neighbors),
+                                        ))
+                                        .unwrap();
+                                })
+                                .detach();
                         }
                     }
                 }
@@ -189,17 +218,20 @@ fn query_changed_chunk_states_system(
 /// Loop through all chunks with a generation task,
 fn query_generated_chunk_system(
     mut commands: Commands,
+    generated_receiver: NonSend<ChunkGeneratedReceiver>,
     mut chunk_map: ResMut<Chunks>,
-    mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut GenTask)>,
+    states: Query<&ChunkState>,
 ) {
-    for (entity, chunk_pos, state, mut task) in chunks.iter_mut() {
-        if *state == ChunkState::Generating {
-            if let Some(chunk) = block_on(poll_once(&mut task.0)) {
-                chunk_map.chunks.insert(chunk_pos.pos, chunk);
-                commands
-                    .entity(entity)
-                    .remove::<GenTask>()
-                    .insert(ChunkState::Rendering);
+    for (pos, chunk) in generated_receiver.0.try_iter() {
+        if let Some(entity) = chunk_map.entities.get(&pos).copied() {
+            if let Ok(state) = states.get(entity) {
+                if *state == ChunkState::Generating {
+                    chunk_map.chunks.insert(pos, chunk);
+                    commands
+                        .entity(entity)
+                        .remove::<GenTask>()
+                        .insert(ChunkState::Rendering);
+                }
             }
         }
     }
@@ -209,22 +241,28 @@ fn query_generated_chunk_system(
 fn query_rendered_chunk_system(
     mut commands: Commands,
     material: Res<ChunkMaterialRes>,
+    chunk_map: Res<Chunks>,
+    rendered_receiver: NonSend<ChunkRenderedReceiver>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut chunks: Query<(Entity, &ChunkPos, &ChunkState, &mut RenderTask)>,
+    states: Query<&ChunkState>,
 ) {
-    for (entity, chunk_pos, state, mut task) in chunks.iter_mut() {
-        if *state == ChunkState::Rendering {
-            if let Some(mesh) = block_on(poll_once(&mut task.0)) {
-                commands
-                    .entity(entity)
-                    .remove::<RenderTask>()
-                    .insert(ChunkState::Visible)
-                    .insert(MaterialMeshBundle {
-                        mesh: meshes.add(mesh),
-                        material: Handle::clone(&material.0),
-                        transform: chunk_pos.transform(),
-                        ..default()
-                    });
+    for (pos, mesh) in rendered_receiver.0.try_iter() {
+        if let Some(entity) = chunk_map.entities.get(&pos).copied() {
+            if let Ok(state) = states.get(entity) {
+                if *state == ChunkState::Rendering {
+                    {
+                        commands
+                            .entity(entity)
+                            .remove::<RenderTask>()
+                            .insert(ChunkState::Visible)
+                            .insert(MaterialMeshBundle {
+                                mesh: meshes.add(mesh),
+                                material: Handle::clone(&material.0),
+                                transform: ChunkPos { pos }.transform(),
+                                ..default()
+                            });
+                    }
+                }
             }
         }
     }
