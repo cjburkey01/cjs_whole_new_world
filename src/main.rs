@@ -71,12 +71,12 @@ fn init_world(mut commands: Commands) {
                     far: 1000.0,
                     ..default()
                 }),
-                transform: Transform::from_xyz(0.0, 10.0, 15.0),
+                transform: Transform::from_xyz(0.0, 30.0, 15.0),
                 ..default()
             },
             ..default()
         },
-        loading::ChunkLoader::new(6),
+        loading::ChunkLoader::new(7),
         loading::ChunkPos::default(),
     ));
 

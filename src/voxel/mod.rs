@@ -13,6 +13,39 @@ pub const CHUNK_WIDTH: u32 = 31;
 pub const CHUNK_SQUARE: u32 = CHUNK_WIDTH * CHUNK_WIDTH;
 pub const CHUNK_CUBE: u32 = CHUNK_SQUARE * CHUNK_WIDTH;
 
+pub const SLICE_DIRECTIONS: [SliceDirection; 6] = [
+    // Normal towards +Z
+    SliceDirection {
+        right: Axis::PosX,
+        up: Axis::PosY,
+    },
+    // Normal towards -Z
+    SliceDirection {
+        right: Axis::NegX,
+        up: Axis::PosY,
+    },
+    // Normal towards +X
+    SliceDirection {
+        right: Axis::NegZ,
+        up: Axis::PosY,
+    },
+    // Normal towards -X
+    SliceDirection {
+        right: Axis::PosZ,
+        up: Axis::PosY,
+    },
+    // Normal towards -Y
+    SliceDirection {
+        right: Axis::PosX,
+        up: Axis::PosZ,
+    },
+    // Normal towards +Y
+    SliceDirection {
+        right: Axis::NegX,
+        up: Axis::PosZ,
+    },
+];
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Axis {
     PosX,
@@ -195,6 +228,40 @@ impl VoxelContainer {
     }
 }
 
+#[derive(Default)]
+pub struct NeighborChunkSlices {
+    pos_x: BitVec,
+    pos_y: BitVec,
+    pos_z: BitVec,
+    neg_x: BitVec,
+    neg_y: BitVec,
+    neg_z: BitVec,
+}
+
+impl NeighborChunkSlices {
+    pub fn get_in_direction(&self, direction: Axis) -> &BitVec {
+        match direction {
+            Axis::PosX => &self.pos_x,
+            Axis::PosY => &self.pos_y,
+            Axis::PosZ => &self.pos_z,
+            Axis::NegX => &self.neg_x,
+            Axis::NegY => &self.neg_y,
+            Axis::NegZ => &self.neg_z,
+        }
+    }
+
+    pub fn get_in_direction_mut(&mut self, direction: Axis) -> &mut BitVec {
+        match direction {
+            Axis::PosX => &mut self.pos_x,
+            Axis::PosY => &mut self.pos_y,
+            Axis::PosZ => &mut self.pos_z,
+            Axis::NegX => &mut self.neg_x,
+            Axis::NegY => &mut self.neg_y,
+            Axis::NegZ => &mut self.neg_z,
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct Chunk {
     voxels: VoxelContainer,
@@ -223,44 +290,11 @@ impl Chunk {
         }
     }
 
-    pub fn generate_mesh(&self) -> Mesh {
+    pub fn generate_mesh(&self, neighbors: NeighborChunkSlices) -> Mesh {
         let mut tmp_mesh = TmpMesh::default();
 
         if !self.definitely_empty {
-            let mesh_directions = [
-                // Normal towards +Z
-                SliceDirection {
-                    right: Axis::PosX,
-                    up: Axis::PosY,
-                },
-                // Normal towards -Z
-                SliceDirection {
-                    right: Axis::NegX,
-                    up: Axis::PosY,
-                },
-                // Normal towards +X
-                SliceDirection {
-                    right: Axis::NegZ,
-                    up: Axis::PosY,
-                },
-                // Normal towards -X
-                SliceDirection {
-                    right: Axis::PosZ,
-                    up: Axis::PosY,
-                },
-                // Normal towards -Y
-                SliceDirection {
-                    right: Axis::PosX,
-                    up: Axis::PosZ,
-                },
-                // Normal towards +Y
-                SliceDirection {
-                    right: Axis::NegX,
-                    up: Axis::PosZ,
-                },
-            ];
-
-            for (dir, z) in iproduct!(mesh_directions, 0..CHUNK_WIDTH) {
+            for (dir, z) in iproduct!(SLICE_DIRECTIONS, 0..CHUNK_WIDTH) {
                 self.mesh_slice(
                     dir,
                     z,
@@ -268,7 +302,7 @@ impl Chunk {
                     if z < CHUNK_WIDTH - 1 {
                         self.get_solid_bits_slice(dir, z + 1)
                     } else {
-                        None
+                        Some(neighbors.get_in_direction(dir.normal()).clone())
                     },
                 );
             }
@@ -277,7 +311,7 @@ impl Chunk {
         tmp_mesh.build()
     }
 
-    fn get_solid_bits_slice(
+    pub fn get_solid_bits_slice(
         &self,
         slice_direction: SliceDirection,
         slice_depth: u32,

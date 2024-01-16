@@ -4,7 +4,9 @@ use crate::{
         loading::{ChunkLoader, ChunkPos},
         voxel_material::ChunkMaterialRes,
     },
-    voxel::{world_noise::WorldNoiseSettings, Chunk},
+    voxel::{
+        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+    },
 };
 use bevy::{
     prelude::*,
@@ -84,6 +86,23 @@ impl Chunks {
         }
     }
 
+    pub fn neighbors(&self, chunk: IVec3) -> Option<NeighborChunkSlices> {
+        let slice_dirs = SLICE_DIRECTIONS.map(|direction| {
+            let norm = direction.normal();
+            let chunk_pos = chunk + norm.to_ivec3();
+            (direction, self.chunks.get(&chunk_pos))
+        });
+
+        let mut output = NeighborChunkSlices::default();
+
+        for (direction, chunk) in slice_dirs {
+            *output.get_in_direction_mut(direction.normal()) =
+                chunk?.get_solid_bits_slice(direction, 0)?;
+        }
+
+        Some(output)
+    }
+
     #[allow(unused)]
     pub fn chunks(&self) -> &HashMap<IVec3, Chunk> {
         &self.chunks
@@ -152,11 +171,13 @@ fn query_changed_chunk_states_system(
                     .unwrap_or(false)
                 {
                     if let Some(chunk) = chunk_map.chunks.get(pos) {
-                        let cloned_chunk = chunk.clone();
-                        commands.entity(entity).insert(RenderTask(
-                            AsyncComputeTaskPool::get()
-                                .spawn(async move { cloned_chunk.generate_mesh() }),
-                        ));
+                        if let Some(neighbors) = chunk_map.neighbors(*pos) {
+                            let cloned_chunk = chunk.clone();
+                            commands.entity(entity).insert(RenderTask(
+                                AsyncComputeTaskPool::get()
+                                    .spawn(async move { cloned_chunk.generate_mesh(neighbors) }),
+                            ));
+                        }
                     }
                 }
             }
