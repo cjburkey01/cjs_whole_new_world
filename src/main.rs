@@ -7,6 +7,7 @@ use bevy::{
     log::{Level, LogPlugin},
     prelude::*,
 };
+
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use std::f32::consts::PI;

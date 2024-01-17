@@ -32,7 +32,12 @@ impl Plugin for ChunkMapPlugin {
             .add_systems(
                 Update,
                 (
-                    (query_deleting_chunks, query_changed_chunk_states_system).chain(),
+                    (
+                        query_deleting_chunks,
+                        query_changed_chunk_states_system
+                            .run_if(on_timer(Duration::from_millis(250))),
+                    )
+                        .chain(),
                     (query_generated_chunk_system, query_rendered_chunk_system)
                         .run_if(on_timer(Duration::from_millis(250))),
                     query_distant_chunks_system.run_if(on_timer(Duration::from_millis(500))),
