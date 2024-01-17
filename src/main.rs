@@ -8,6 +8,7 @@ use bevy::{
     prelude::*,
 };
 
+use crate::voxel::{Biome, BiomeHumidity, BiomeTable, BiomeTemperature};
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use std::f32::consts::PI;
@@ -46,7 +47,7 @@ fn main() {
             brightness: 0.3,
             ..default()
         })
-        .insert_resource(WorldNoiseSettings::new(42069))
+        .insert_resource(WorldNoiseSettings::new(42069, BiomeTable::new()))
         .add_systems(Startup, init_world)
         .run();
 }

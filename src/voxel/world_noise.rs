@@ -1,4 +1,4 @@
-use crate::voxel::{Chunk, InChunkPos, Voxel, CHUNK_WIDTH};
+use super::{BiomeTable, Chunk, InChunkPos, Voxel, CHUNK_WIDTH};
 use bevy::prelude::*;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
@@ -8,14 +8,16 @@ use noise::{
 #[derive(Resource, Clone)]
 pub struct WorldNoiseSettings {
     fbm: Fbm<Perlin>,
+    biome_table: BiomeTable,
 }
 
 impl WorldNoiseSettings {
-    pub fn new(seed: u32) -> Self {
+    pub fn new(seed: u32, biome_table: BiomeTable) -> Self {
         Self {
             fbm: Fbm::<Perlin>::new(seed)
                 .set_frequency(0.02)
                 .set_persistence(0.45),
+            biome_table,
         }
     }
 
