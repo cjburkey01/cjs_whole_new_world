@@ -8,7 +8,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::voxel::{Biome, BiomeHumidity, BiomeTable, BiomeTemperature};
+use crate::voxel::BiomeTable;
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use std::f32::consts::PI;

@@ -1,4 +1,4 @@
-use enum_iterator::{all, cardinality, Sequence};
+use enum_iterator::{cardinality, Sequence};
 use itertools::iproduct;
 use num_enum::{FromPrimitive, IntoPrimitive};
 use std::fmt::{Display, Formatter};
