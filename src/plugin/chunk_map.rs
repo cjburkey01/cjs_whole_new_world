@@ -4,7 +4,10 @@ use crate::{
         loading::{ChunkLoader, ChunkPos},
         voxel_material::ChunkMaterialRes,
     },
-    voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
+    voxel::{
+        world_noise::{Chunk2dNoiseValues, WorldNoiseSettings},
+        Chunk, NeighborChunkSlices, SLICE_DIRECTIONS,
+    },
 };
 use bevy::{
     prelude::*,
@@ -55,27 +58,21 @@ pub enum ChunkState {
 }
 
 #[derive(Resource)]
-pub struct ChunkGeneratedSender(pub Sender<(IVec3, Chunk)>);
+pub struct ChunkGeneratedSender(pub Sender<(IVec3, Option<Chunk2dNoiseValues>, Chunk)>);
 #[derive(Resource)]
 pub struct ChunkRenderedSender(pub Sender<(IVec3, Mesh)>);
 
-pub struct ChunkGeneratedReceiver(pub Receiver<(IVec3, Chunk)>);
+pub struct ChunkGeneratedReceiver(pub Receiver<(IVec3, Option<Chunk2dNoiseValues>, Chunk)>);
 pub struct ChunkRenderedReceiver(pub Receiver<(IVec3, Mesh)>);
 
 /// Keeps track of all chunk states in the world.
-#[derive(Resource)]
+#[derive(Default, Resource)]
 pub struct Chunks {
     entities: HashMap<IVec3, Entity>,
     chunks: HashMap<IVec3, Chunk>,
-}
 
-impl Default for Chunks {
-    fn default() -> Self {
-        Self {
-            entities: default(),
-            chunks: default(),
-        }
-    }
+    // Indexed by chunk X,Z coordinates since these values won't change with Y.
+    heightmap_map: HashMap<IVec2, Chunk2dNoiseValues>,
 }
 
 impl Chunks {
@@ -180,10 +177,28 @@ fn query_changed_chunk_states_system(
                 {
                     commands.entity(entity).insert(GenTask);
 
+                    let c = chunk_map
+                        .heightmap_map
+                        .get(&IVec2::new(pos.x, pos.z))
+                        .cloned();
+
                     let sender = generated_sender.0.clone();
                     pool.spawn(async move {
-                        let chunk = noise.build_heightmap_chunk(pos);
-                        sender.send((pos, chunk)).unwrap();
+                        sender
+                            .send(match c {
+                                Some(existing_noise) => (
+                                    pos,
+                                    None,
+                                    noise.generate_chunk_from_noise(pos.y, &existing_noise),
+                                ),
+                                None => {
+                                    let new_noise =
+                                        noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
+                                    let chunk = noise.generate_chunk_from_noise(pos.y, &new_noise);
+                                    (pos, Some(new_noise), chunk)
+                                }
+                            })
+                            .unwrap();
                     })
                     .detach()
                 }
@@ -227,7 +242,13 @@ fn query_generated_chunk_system(
     mut chunk_map: ResMut<Chunks>,
     states: Query<&ChunkState>,
 ) {
-    for (pos, chunk) in generated_receiver.0.try_iter() {
+    for (pos, new_noise, chunk) in generated_receiver.0.try_iter() {
+        if let Some(new_noise) = new_noise {
+            let _ = chunk_map
+                .heightmap_map
+                .entry(IVec2::new(pos.x, pos.z))
+                .or_insert(new_noise);
+        }
         if let Some(entity) = chunk_map.entities.get(&pos).copied() {
             if let Ok(state) = states.get(entity) {
                 if *state == ChunkState::Generating {
