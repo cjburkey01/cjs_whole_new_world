@@ -61,13 +61,11 @@ impl WorldNoiseSettings {
         let mut chunk = Chunk::default();
         let heightmap = noise.heightmap.as_slice();
 
-        let mut definitely_empty = true;
         for (z, x) in iproduct!(0..CHUNK_WIDTH, 0..CHUNK_WIDTH) {
             let height = heightmap[(z * CHUNK_WIDTH + x) as usize] * 150.0
                 - (y_level * CHUNK_WIDTH as i32) as f64
                 + 10.0;
             for y in 0..(height.max(0.0) as u32).min(CHUNK_WIDTH) {
-                definitely_empty = false;
                 chunk.set(
                     InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
                     match y as f64 {
@@ -79,9 +77,7 @@ impl WorldNoiseSettings {
             }
         }
 
-        Chunk {
-            definitely_empty,
-            ..chunk
-        }
+        chunk.update_edge_slice_bits();
+        chunk
     }
 }

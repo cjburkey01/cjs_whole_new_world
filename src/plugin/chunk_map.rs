@@ -111,8 +111,10 @@ impl Chunks {
         let mut output = NeighborChunkSlices::default();
 
         for (direction, chunk) in slice_dirs {
-            *output.get_in_direction_mut(direction.normal()) =
-                chunk?.get_solid_bits_slice(direction, 0)?;
+            *output.get_in_direction_mut(direction.normal()) = chunk?
+                .edge_slice_bits
+                .get_in_direction(direction.normal().negate())
+                .clone();
         }
 
         Some(output)
