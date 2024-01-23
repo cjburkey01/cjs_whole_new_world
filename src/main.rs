@@ -7,12 +7,11 @@ use bevy::{
     log::{Level, LogPlugin},
     prelude::*,
 };
-
-use crate::voxel::BiomeTable;
+use bevy_rapier3d::prelude::*;
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use std::f32::consts::PI;
-use voxel::world_noise::WorldNoiseSettings;
+use voxel::{world_noise::WorldNoiseSettings, BiomeTable};
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -34,6 +33,7 @@ fn main() {
                     ..default()
                 }),
         )
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins((
             InputManagerPlugin::<control::input::PlyAction>::default(),
             control::PlyControlPlugin,

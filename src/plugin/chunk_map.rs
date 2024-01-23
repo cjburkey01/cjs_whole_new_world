@@ -15,6 +15,7 @@ use bevy::{
     time::common_conditions::on_timer,
     utils::{hashbrown::hash_map::Entry, HashMap},
 };
+use bevy_rapier3d::prelude::*;
 use std::{
     sync::mpsc::{channel, Receiver, Sender},
     time::Duration,
@@ -60,10 +61,10 @@ pub enum ChunkState {
 #[derive(Resource)]
 pub struct ChunkGeneratedSender(pub Sender<(IVec3, Option<Chunk2dNoiseValues>, Chunk)>);
 #[derive(Resource)]
-pub struct ChunkRenderedSender(pub Sender<(IVec3, Mesh)>);
+pub struct ChunkRenderedSender(pub Sender<(IVec3, Option<Collider>, Mesh)>);
 
 pub struct ChunkGeneratedReceiver(pub Receiver<(IVec3, Option<Chunk2dNoiseValues>, Chunk)>);
-pub struct ChunkRenderedReceiver(pub Receiver<(IVec3, Mesh)>);
+pub struct ChunkRenderedReceiver(pub Receiver<(IVec3, Option<Collider>, Mesh)>);
 
 /// Keeps track of all chunk states in the world.
 #[derive(Default, Resource)]
@@ -220,12 +221,9 @@ fn query_changed_chunk_states_system(
                             let sender = rendered_sender.0.clone();
                             AsyncComputeTaskPool::get()
                                 .spawn(async move {
-                                    sender
-                                        .send((
-                                            pos,
-                                            crate::voxel::generate_mesh(&cloned_chunk, neighbors),
-                                        ))
-                                        .unwrap();
+                                    let (collider, mesh) =
+                                        crate::voxel::generate_mesh(&cloned_chunk, neighbors);
+                                    sender.send((pos, collider, mesh)).unwrap();
                                 })
                                 .detach();
                         }
@@ -274,21 +272,23 @@ fn query_rendered_chunk_system(
     mut meshes: ResMut<Assets<Mesh>>,
     states: Query<&ChunkState>,
 ) {
-    for (pos, mesh) in rendered_receiver.0.try_iter() {
+    for (pos, collider, mesh) in rendered_receiver.0.try_iter() {
         if let Some(entity) = chunk_map.entities.get(&pos).copied() {
             if let Ok(state) = states.get(entity) {
                 if *state == ChunkState::Rendering {
                     {
-                        commands
-                            .entity(entity)
-                            .remove::<RenderTask>()
-                            .insert(ChunkState::Visible)
-                            .insert(MaterialMeshBundle {
+                        let mut e = commands.entity(entity);
+                        e.remove::<RenderTask>().insert(ChunkState::Visible).insert(
+                            MaterialMeshBundle {
                                 mesh: meshes.add(mesh),
                                 material: Handle::clone(&material.0),
                                 transform: ChunkPos { pos }.transform(),
                                 ..default()
-                            });
+                            },
+                        );
+                        if let Some(collider) = collider {
+                            e.insert(collider).insert(RigidBody::Fixed);
+                        }
                     }
                 }
             }
