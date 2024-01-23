@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 pub trait Denormalize: Sequence + FromPrimitive<Primitive = u8> {
     fn denormalize(normalized: f64) -> Self {
         let half_count_f = 0.5 * cardinality::<Self>() as f64;
-        let humidity = half_count_f * (normalized.min(1.0).max(0.0) + 1.0);
+        let humidity = half_count_f * (normalized.min(1.0).max(-1.0) + 1.0);
         <Self as FromPrimitive>::from_primitive(humidity.trunc() as u8)
     }
 }
