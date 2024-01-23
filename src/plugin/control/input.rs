@@ -6,6 +6,8 @@ pub enum PlyAction {
     // Movement
     LateralMove,
     UpDown,
+    // Left click
+    Fire,
     // Speed up key
     Fast,
     // Mouse look motion
@@ -30,6 +32,7 @@ pub fn create_input_manager_bundle() -> InputManagerBundle<PlyAction> {
                 },
                 PlyAction::UpDown,
             )
+            .insert(MouseButton::Left, PlyAction::Fire)
             .insert(Modifier::Shift, PlyAction::Fast)
             .insert(DualAxis::mouse_motion(), PlyAction::Look)
             .insert(KeyCode::Escape, PlyAction::Pause)

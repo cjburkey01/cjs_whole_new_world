@@ -5,11 +5,13 @@ mod voxel;
 
 use bevy::{
     log::{Level, LogPlugin},
-    prelude::*,
+    prelude::{shape::Cube, *},
 };
 use bevy_rapier3d::prelude::*;
+use control::{input::PlyAction, pause::PauseState};
 use leafwing_input_manager::prelude::*;
 use plugin::*;
+use rand::random;
 use std::f32::consts::PI;
 use voxel::{world_noise::WorldNoiseSettings, BiomeTable};
 
@@ -35,7 +37,7 @@ fn main() {
         )
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins((
-            InputManagerPlugin::<control::input::PlyAction>::default(),
+            InputManagerPlugin::<PlyAction>::default(),
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
             loading::ChunkLoadingPlugin,
@@ -49,6 +51,7 @@ fn main() {
         })
         .insert_resource(WorldNoiseSettings::new(42069, BiomeTable::new()))
         .add_systems(Startup, init_world)
+        .add_systems(Update, shoot_test.run_if(in_state(PauseState::Playing)))
         .run();
 }
 
@@ -87,4 +90,40 @@ fn init_world(mut commands: Commands) {
     // Action
 
     // :)
+}
+
+fn shoot_test(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    query: Query<(&Transform, &ActionState<PlyAction>)>,
+) {
+    for (transform, input) in query.iter() {
+        if input.just_pressed(PlyAction::Fire) {
+            let forward = transform.forward();
+            commands
+                .spawn(MaterialMeshBundle {
+                    mesh: meshes.add(Cube::new(0.5).into()),
+                    material: materials.add(Color::WHITE.into()),
+                    transform: Transform::from_translation(transform.translation + forward * 3.0)
+                        .with_rotation(transform.rotation),
+                    ..default()
+                })
+                .insert((
+                    Collider::cuboid(0.25, 0.25, 0.25),
+                    ColliderMassProperties::Density(200.0),
+                    RigidBody::Dynamic,
+                    Restitution::new(0.3),
+                    Velocity {
+                        linvel: forward * 45.0,
+                        angvel: Vec3::new(
+                            random::<f32>() * 20.0 - 10.0,
+                            random::<f32>() * 20.0 - 10.0,
+                            random::<f32>() * 20.0 - 10.0,
+                        ),
+                    },
+                    Ccd::enabled(),
+                ));
+        }
+    }
 }
