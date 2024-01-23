@@ -19,6 +19,7 @@ pub struct WorldNoiseSettings {
     heightmap_fbm: Fbm<Perlin>,
     temperature_fbm: Fbm<Perlin>,
     humidity_fbm: Fbm<Perlin>,
+    #[allow(unused)]
     biome_table: BiomeTable,
 }
 

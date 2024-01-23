@@ -84,6 +84,7 @@ pub struct Biome {
     humidity: BiomeHumidity,
 }
 
+#[allow(unused)]
 impl Biome {
     pub fn new(name: &str, temperature: BiomeTemperature, humidity: BiomeHumidity) -> Self {
         Self {
@@ -114,6 +115,7 @@ impl Biome {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone)]
 pub struct BiomeTable {
     biomes: Vec<Biome>,
@@ -121,6 +123,7 @@ pub struct BiomeTable {
     humidity_max: u8,
 }
 
+#[allow(unused)]
 impl BiomeTable {
     pub fn new() -> Self {
         let temp_max = cardinality::<BiomeTemperature>();
