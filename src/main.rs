@@ -4,9 +4,11 @@ mod plugin;
 mod voxel;
 
 use bevy::{
+    diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     log::{Level, LogPlugin},
     prelude::{shape::Cube, *},
 };
+use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
 use control::{input::PlyAction, pause::PauseState};
 use leafwing_input_manager::prelude::*;
@@ -17,6 +19,26 @@ use voxel::{world_noise::WorldNoiseSettings, BiomeTable};
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash, States)]
+pub enum AssetState {
+    #[default]
+    Loading,
+    Ready,
+}
+
+#[derive(AssetCollection, Resource)]
+struct FontAssets {
+    #[asset(path = "fonts/FiraCode6.2/FiraCode-Bold.ttf")]
+    fira_code_bold: Handle<Font>,
+    #[asset(path = "fonts/FiraCode6.2/FiraCode-Regular.ttf")]
+    fira_code_regular: Handle<Font>,
+
+    #[asset(path = "fonts/FiraSans/FiraSans-Bold.ttf")]
+    fira_sans_bold: Handle<Font>,
+    #[asset(path = "fonts/FiraSans/FiraSans-Regular.ttf")]
+    fira_sans_regular: Handle<Font>,
+}
 
 fn main() {
     App::new()
@@ -35,6 +57,7 @@ fn main() {
                     ..default()
                 }),
         )
+        .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins((
             InputManagerPlugin::<PlyAction>::default(),
@@ -44,14 +67,20 @@ fn main() {
             chunk_map::ChunkMapPlugin,
             better_chunk_map::Plugin3000,
         ))
+        .add_state::<AssetState>()
+        .add_loading_state(
+            LoadingState::new(AssetState::Loading)
+                .continue_to_state(AssetState::Ready)
+                .load_collection::<FontAssets>(),
+        )
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
             brightness: 0.3,
             ..default()
         })
         .insert_resource(WorldNoiseSettings::new(42069, BiomeTable::new()))
-        .add_systems(Startup, init_world)
-        .add_systems(Update, shoot_test.run_if(in_state(PauseState::Playing)))
+        .add_systems(OnEnter(AssetState::Ready), (init_world, init_ui))
+        .add_systems(Update, (update_ui, shoot_test.run_if(in_state(PauseState::Playing))))
         .run();
 }
 
@@ -92,6 +121,9 @@ fn init_world(mut commands: Commands) {
     // :)
 }
 
+#[derive(Component)]
+struct FpsText;
+
 fn shoot_test(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -124,6 +156,46 @@ fn shoot_test(
                     },
                     Ccd::enabled(),
                 ));
+        }
+    }
+}
+
+fn init_ui(mut commands: Commands, fonts: Res<FontAssets>) {
+    commands.spawn(NodeBundle::default()).with_children(|cmds| {
+        cmds.spawn((
+            TextBundle {
+                text: Text::from_sections([
+                    TextSection::new(
+                        "0",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                    TextSection::new(
+                        " FPS",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                ]),
+                ..default()
+            },
+            FpsText,
+        ));
+    });
+}
+
+fn update_ui(diagnostics: Res<DiagnosticsStore>, mut text: Query<&mut Text, With<FpsText>>) {
+    let fps = diagnostics
+        .get(FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(Diagnostic::average);
+    if let Some(fps) = fps {
+        for mut text in text.iter_mut() {
+            text.sections[0].value = format!("{fps:.2}");
         }
     }
 }
