@@ -27,6 +27,7 @@ pub enum AssetState {
     Ready,
 }
 
+#[allow(unused)]
 #[derive(AssetCollection, Resource)]
 struct FontAssets {
     #[asset(path = "fonts/FiraCode6.2/FiraCode-Bold.ttf")]
