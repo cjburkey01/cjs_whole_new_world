@@ -1,22 +1,11 @@
 use crate::voxel::CHUNK_WIDTH;
 use bevy::prelude::*;
 
-pub struct ChunkLoadingPlugin;
+pub struct ChunkPosPlugin;
 
-impl Plugin for ChunkLoadingPlugin {
+impl Plugin for ChunkPosPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, on_update_translate_chunk_pos);
-    }
-}
-
-#[derive(Default, Debug, Component, Copy, Clone, Eq, PartialEq)]
-pub struct ChunkLoader {
-    pub radius: u32,
-}
-
-impl ChunkLoader {
-    pub fn new(radius: u32) -> Self {
-        Self { radius }
     }
 }
 

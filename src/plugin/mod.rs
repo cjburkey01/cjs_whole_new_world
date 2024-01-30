@@ -1,5 +1,5 @@
 pub mod beef;
+pub mod chunk_loader;
+pub mod chunk_pos;
 pub mod control;
-#[allow(unused)]
-pub mod loading;
 pub mod voxel_material;

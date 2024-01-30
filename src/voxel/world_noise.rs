@@ -28,7 +28,7 @@ impl WorldNoiseSettings {
         Self {
             heightmap_fbm: Fbm::<Perlin>::new(seed)
                 .set_frequency(0.02)
-                .set_persistence(0.45),
+                .set_persistence(0.6),
             temperature_fbm: Fbm::<Perlin>::new((seed / 3 + 893) + 10)
                 .set_octaves(2)
                 .set_frequency(0.003),

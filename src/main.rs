@@ -6,13 +6,14 @@ mod voxel;
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     log::{Level, LogPlugin},
+    pbr::CascadeShadowConfigBuilder,
     prelude::{shape::Cube, *},
 };
 use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
 use control::{input::PlyAction, pause::PauseState};
 use leafwing_input_manager::prelude::*;
-use plugin::*;
+use plugin::{chunk_loader, *};
 use rand::random;
 use std::f32::consts::PI;
 use voxel::{world_noise::WorldNoiseSettings, BiomeTable};
@@ -64,7 +65,7 @@ fn main() {
             InputManagerPlugin::<PlyAction>::default(),
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
-            loading::ChunkLoadingPlugin,
+            chunk_pos::ChunkPosPlugin,
             //chunk_map::ChunkMapPlugin,
             //better_chunk_map::Plugin3000,
             beef::BeefPlugin,
@@ -77,7 +78,7 @@ fn main() {
         )
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
-            brightness: 0.3,
+            brightness: 0.45,
             ..default()
         })
         .insert_resource(WorldNoiseSettings::new(42069, BiomeTable::new()))
@@ -89,13 +90,19 @@ fn main() {
 fn init_world(mut commands: Commands) {
     // Lights
     commands.spawn(DirectionalLightBundle {
-        transform: Transform::from_translation(Vec3::new(2.0, 3.0, 4.0))
+        transform: Transform::from_translation(Vec3::new(1.0, 3.0, 2.0))
             .looking_at(Vec3::ZERO, Vec3::Y),
         directional_light: DirectionalLight {
             color: Color::BISQUE,
             shadows_enabled: true,
             ..default()
         },
+        cascade_shadow_config: CascadeShadowConfigBuilder {
+            overlap_proportion: 0.3,
+            first_cascade_far_bound: 35.0,
+            ..default()
+        }
+        .build(),
         ..default()
     });
 
@@ -114,8 +121,8 @@ fn init_world(mut commands: Commands) {
             },
             ..default()
         },
-        loading::ChunkLoader::new(6),
-        loading::ChunkPos::default(),
+        chunk_loader::ChunkLoader::new(6),
+        chunk_pos::ChunkPos::default(),
     ));
 
     // Action

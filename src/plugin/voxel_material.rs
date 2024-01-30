@@ -35,9 +35,17 @@ fn add_chunk_material_system(
     };
 
     let handle = materials.add(ExtendedMaterial {
-        base: asset_server
-            .load_with_settings("textures/voxels.png", settings)
-            .into(),
+        base: StandardMaterial {
+            base_color: Color::WHITE,
+            base_color_texture: Some(
+                asset_server.load_with_settings("textures/voxels.png", settings),
+            ),
+            perceptual_roughness: 1.0,
+            metallic: 0.01,
+            reflectance: 0.02,
+            double_sided: true,
+            ..default()
+        },
         extension: VoxelChunkMaterial { atlas_width: 4 },
     });
     commands.insert_resource(ChunkMaterialRes(handle));

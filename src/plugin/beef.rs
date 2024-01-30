@@ -1,8 +1,5 @@
 use crate::{
-    plugin::{
-        loading::{ChunkLoader, ChunkPos},
-        voxel_material::ChunkMaterialRes,
-    },
+    plugin::{chunk_loader::ChunkLoader, chunk_pos::ChunkPos, voxel_material::ChunkMaterialRes},
     voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
 };
 use bevy::{
