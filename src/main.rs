@@ -65,8 +65,9 @@ fn main() {
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
             loading::ChunkLoadingPlugin,
-            chunk_map::ChunkMapPlugin,
-            better_chunk_map::Plugin3000,
+            //chunk_map::ChunkMapPlugin,
+            //better_chunk_map::Plugin3000,
+            beef::BeefPlugin,
         ))
         .add_state::<AssetState>()
         .add_loading_state(

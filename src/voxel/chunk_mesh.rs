@@ -151,7 +151,7 @@ impl TmpChunkMesh {
         );
     }
 
-    pub fn build(self) -> (Option<Collider>, Mesh) {
+    pub fn build(self) -> Option<(Collider, Mesh)> {
         let Self { verts, inds, hacks } = self;
 
         let mut collider_inds = Vec::with_capacity(inds.len() / 3);
@@ -163,20 +163,20 @@ impl TmpChunkMesh {
             ]);
         }
 
-        (
-            match inds.len() {
-                0 => None,
-                _ => Some(Collider::trimesh(verts.clone(), collider_inds)),
-            },
-            Mesh::new(PrimitiveTopology::TriangleList)
-                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, verts)
-                .with_inserted_attribute(ATTRIBUTE_HACK_VERT, hacks)
-                .with_indices(Some(Indices::U16(inds))),
-        )
+        match inds.is_empty() {
+            true => None,
+            false => Some((
+                Collider::trimesh(verts.clone(), collider_inds),
+                Mesh::new(PrimitiveTopology::TriangleList)
+                    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, verts)
+                    .with_inserted_attribute(ATTRIBUTE_HACK_VERT, hacks)
+                    .with_indices(Some(Indices::U16(inds))),
+            )),
+        }
     }
 }
 
-pub fn generate_mesh(chunk: &Chunk, neighbors: NeighborChunkSlices) -> (Option<Collider>, Mesh) {
+pub fn generate_mesh(chunk: &Chunk, neighbors: NeighborChunkSlices) -> Option<(Collider, Mesh)> {
     let mut tmp_mesh = TmpChunkMesh::default();
 
     if !chunk.definitely_empty {
