@@ -1,11 +1,13 @@
 mod main_menu;
 mod new_world;
 mod pause_menu;
+mod pause_settings_menu;
 pub mod text_input;
 
 pub use main_menu::*;
 pub use new_world::*;
 pub use pause_menu::*;
+pub use pause_settings_menu::*;
 
 use crate::{plugin::control::pause::PauseState, AssetState, FontAssets};
 use bevy::{ecs::schedule::SystemConfigs, prelude::*};
@@ -19,7 +21,12 @@ pub struct GameGuiPlugin;
 impl Plugin for GameGuiPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<MenuState>()
-            .add_plugins((MainMenuPlugin, NewWorldMenuPlugin, PauseMenuPlugin))
+            .add_plugins((
+                MainMenuPlugin,
+                NewWorldMenuPlugin,
+                PauseMenuPlugin,
+                PauseSettingsMenuPlugin,
+            ))
             .add_systems(
                 OnEnter(AssetState::Ready),
                 update_state_system(MenuState::MainMenu),
@@ -60,6 +67,7 @@ pub enum MenuState {
     None,
     MainMenu,
     NewWorldMenu,
+    PauseSettings,
     Paused,
 }
 

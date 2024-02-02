@@ -1,5 +1,8 @@
 use crate::{
-    plugin::{chunk_loader::ChunkLoader, chunk_pos::ChunkPos, voxel_material::ChunkMaterialRes},
+    plugin::{
+        chunk_loader::ChunkLoader, chunk_pos::ChunkPos, control::PlyCamControl,
+        game_settings::GameSettings, voxel_material::ChunkMaterialRes,
+    },
     voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
 };
 use bevy::{
@@ -22,6 +25,10 @@ impl Plugin for BeefPlugin {
                 .chain()
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<WorldNoiseSettings>()),
+        )
+        .add_systems(
+            Update,
+            update_loader_radius.run_if(resource_changed::<GameSettings>()),
         );
     }
 }
@@ -345,5 +352,14 @@ impl FixedChunkWorld {
                 ));
             }
         }
+    }
+}
+
+fn update_loader_radius(
+    settings: Res<GameSettings>,
+    mut loader: Query<&mut ChunkLoader, With<PlyCamControl>>,
+) {
+    if let Ok(mut loader) = loader.get_single_mut() {
+        loader.radius = settings.load_radius;
     }
 }

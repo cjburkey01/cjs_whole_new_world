@@ -28,6 +28,10 @@ impl Plugin for PauseMenuPlugin {
             Update,
             (
                 update_state_button::<MainMenuButton, _>(MenuState::Paused, MenuState::MainMenu),
+                update_state_button::<PauseSettingsButton, _>(
+                    MenuState::Paused,
+                    MenuState::PauseSettings,
+                ),
                 update_state_button::<UnpauseButton, _>(MenuState::Paused, MenuState::None),
                 toggle_pause_menu_system,
             ),
@@ -62,10 +66,13 @@ fn toggle_pause_menu_system(
 }
 
 #[derive(Component)]
-struct NewWorldMenu;
+struct PauseMenu;
 
 #[derive(Component)]
 struct UnpauseButton;
+
+#[derive(Component)]
+struct PauseSettingsButton;
 
 #[derive(Component)]
 struct MainMenuButton;
@@ -73,7 +80,7 @@ struct MainMenuButton;
 fn spawn_pause_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
     // Entire screen node
     commands
-        .spawn((NewWorldMenu, menu_wrapper_node()))
+        .spawn((PauseMenu, menu_wrapper_node()))
         .with_children(|commands| {
             // New world menu node
             commands.spawn(menu_node()).with_children(|commands| {
@@ -85,6 +92,13 @@ fn spawn_pause_menu_system(mut commands: Commands, font_assets: Res<FontAssets>)
                 make_btn(
                     commands,
                     &font_assets,
+                    "Settings",
+                    Some(PauseSettingsButton),
+                    true,
+                );
+                make_btn(
+                    commands,
+                    &font_assets,
                     "Main Menu",
                     Some(MainMenuButton),
                     true,
@@ -93,7 +107,7 @@ fn spawn_pause_menu_system(mut commands: Commands, font_assets: Res<FontAssets>)
         });
 }
 
-fn despawn_pause_menu_system(mut commands: Commands, query: Query<Entity, With<NewWorldMenu>>) {
+fn despawn_pause_menu_system(mut commands: Commands, query: Query<Entity, With<PauseMenu>>) {
     if let Ok(entity) = query.get_single() {
         commands.entity(entity).despawn_recursive();
     }

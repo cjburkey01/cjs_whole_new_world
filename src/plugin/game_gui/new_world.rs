@@ -8,6 +8,7 @@ use crate::{
         chunk_loader::ChunkLoader,
         control::{pause::PauseState, PlyCamControl},
         game_gui::text_input::{TextInput, TextInputInactive, TextValue},
+        game_settings::GameSettings,
     },
     voxel::{world_noise::WorldNoiseSettings, BiomeTable},
     FontAssets,
@@ -114,11 +115,12 @@ fn despawn_new_world_menu_system(mut commands: Commands, query: Query<Entity, Wi
 
 fn on_pressed_create_button_system(
     mut commands: Commands,
+    mut next_menu_state: ResMut<NextState<MenuState>>,
+    mut next_pause_state: ResMut<NextState<PauseState>>,
+    game_settings: Res<GameSettings>,
     world_name_text: Query<&TextValue, With<WorldNameValueMarker>>,
     world_seed_text: Query<&TextValue, With<WorldSeedValueMarker>>,
     player_controller: Query<Entity, With<PlyCamControl>>,
-    mut menu_state: ResMut<NextState<MenuState>>,
-    mut pause_state: ResMut<NextState<PauseState>>,
 ) {
     let Ok(name) = world_name_text
         .get_single()
@@ -136,9 +138,11 @@ fn on_pressed_create_button_system(
     ) as u32;
 
     if let Ok(ply_entity) = player_controller.get_single() {
-        commands.entity(ply_entity).insert(ChunkLoader::new(4));
-        menu_state.set(MenuState::None);
-        pause_state.set(PauseState::Playing);
+        commands
+            .entity(ply_entity)
+            .insert(ChunkLoader::new(game_settings.load_radius));
+        next_menu_state.set(MenuState::None);
+        next_pause_state.set(PauseState::Playing);
     }
 
     info!("Creating world \"{name}\" with seed {seed}");

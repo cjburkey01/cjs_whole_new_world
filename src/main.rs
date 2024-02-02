@@ -66,6 +66,7 @@ fn main() {
         .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins((
+            game_settings::GameSettingsPlugin,
             InputManagerPlugin::<PlyAction>::default(),
             TextInputPlugin,
             control::PlyControlPlugin,
