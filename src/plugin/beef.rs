@@ -36,11 +36,14 @@ impl Plugin for BeefPlugin {
 fn update_loader_states(
     mut commands: Commands,
     mut chunks: ResMut<FixedChunkWorld>,
-    loaders: Query<(&ChunkPos, &ChunkLoader), Changed<ChunkPos>>,
+    game_settings: Res<GameSettings>,
+    loaders: Query<(Ref<ChunkPos>, &ChunkLoader)>,
 ) {
     // Only one chunk loader for now
     if let Ok((loader_pos, ChunkLoader { radius })) = loaders.get_single() {
-        chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
+        if loader_pos.is_changed() || game_settings.is_changed() {
+            chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
+        }
     }
 }
 
