@@ -19,3 +19,7 @@
 ![Screenshot of v0.0.6 terrain with stone](./screenshots/v0.0.6-2.png)
 
 ![Screenshot of v0.0.6 big terrain](./screenshots/v0.0.6-3.png)
+
+![Screenshot of v0.0.6 big hill](./screenshots/v0.0.6-4.png)
+
+![Screenshot of v0.0.6 fairly empty settings menu](./screenshots/v0.0.6-5.png)

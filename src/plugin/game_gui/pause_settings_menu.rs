@@ -1,7 +1,8 @@
 use super::{
-    make_btn, menu_node, menu_title_text_bundle, menu_wrapper_node, update_state_button, MenuState,
+    label_bundle, make_btn, menu_node, menu_title_text_bundle, menu_wrapper_node,
+    update_state_button, was_button_just_pressed, MenuState,
 };
-use crate::FontAssets;
+use crate::{plugin::game_settings::GameSettings, FontAssets};
 use bevy::prelude::*;
 
 pub struct PauseSettingsMenuPlugin;
@@ -18,7 +19,16 @@ impl Plugin for PauseSettingsMenuPlugin {
         )
         .add_systems(
             Update,
-            update_state_button::<BackButton, _>(MenuState::PauseSettings, MenuState::Paused),
+            (
+                update_radius_text_system.run_if(resource_changed::<GameSettings>()),
+                increment_radius_system(false)
+                    .run_if(in_state(MenuState::PauseSettings))
+                    .run_if(was_button_just_pressed::<RadiusDownButton>()),
+                increment_radius_system(true)
+                    .run_if(in_state(MenuState::PauseSettings))
+                    .run_if(was_button_just_pressed::<RadiusUpButton>()),
+                update_state_button::<BackButton, _>(MenuState::PauseSettings, MenuState::Paused),
+            ),
         );
     }
 }
@@ -29,7 +39,20 @@ struct PauseSettingsMenu;
 #[derive(Component)]
 struct BackButton;
 
-fn spawn_pause_settings_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
+#[derive(Component)]
+struct RadiusUpButton;
+
+#[derive(Component)]
+struct RadiusDownButton;
+
+#[derive(Component)]
+struct RadiusText;
+
+fn spawn_pause_settings_menu_system(
+    mut commands: Commands,
+    game_settings: Res<GameSettings>,
+    font_assets: Res<FontAssets>,
+) {
     // Entire screen node
     commands
         .spawn((PauseSettingsMenu, menu_wrapper_node()))
@@ -39,10 +62,67 @@ fn spawn_pause_settings_menu_system(mut commands: Commands, font_assets: Res<Fon
                 // Menu title text
                 commands.spawn(menu_title_text_bundle(&font_assets, "Settings"));
 
-                // Buttons
+                // Load radius input label
+                commands.spawn(label_bundle(
+                    &font_assets.fira_sans_regular,
+                    "Chunk loading radius:",
+                ));
+
+                // Load radius input
+                commands
+                    .spawn(NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Row,
+                            justify_content: JustifyContent::Center,
+                            align_content: AlignContent::Stretch,
+                            column_gap: Val::Px(5.0),
+                            flex_grow: 1.0,
+                            ..default()
+                        },
+                        ..default()
+                    })
+                    .with_children(|commands| {
+                        make_btn(commands, &font_assets, "+", Some(RadiusUpButton), true);
+
+                        commands.spawn((
+                            RadiusText,
+                            TextBundle {
+                                style: Style {
+                                    align_self: AlignSelf::Center,
+                                    justify_self: JustifySelf::Stretch,
+                                    flex_grow: 0.0,
+                                    ..default()
+                                },
+                                ..label_bundle(
+                                    &font_assets.fira_code_regular,
+                                    game_settings.load_radius.to_string(),
+                                )
+                            },
+                        ));
+
+                        make_btn(commands, &font_assets, "-", Some(RadiusDownButton), true);
+                    });
+
+                // Back button
                 make_btn(commands, &font_assets, "Back", Some(BackButton), true);
             });
         });
+}
+
+fn update_radius_text_system(
+    settings: Res<GameSettings>,
+    mut text: Query<&mut Text, With<RadiusText>>,
+) {
+    if let Ok(mut text) = text.get_single_mut() {
+        text.sections[0].value = settings.load_radius.to_string();
+    }
+}
+
+fn increment_radius_system(increase: bool) -> impl Fn(ResMut<GameSettings>) {
+    move |mut settings: ResMut<GameSettings>| match increase {
+        true => settings.load_radius += 1,
+        false => settings.load_radius = settings.load_radius.max(2) - 1, // Minimum of 1
+    }
 }
 
 fn despawn_pause_settings_menu_system(

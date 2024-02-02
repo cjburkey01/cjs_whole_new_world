@@ -74,19 +74,25 @@ fn spawn_new_world_menu_system(mut commands: Commands, font_assets: Res<FontAsse
                 commands.spawn(menu_title_text_bundle(&font_assets, "New World"));
 
                 // World name input label
-                commands.spawn(label_bundle(&font_assets, "World name:"));
+                commands.spawn(label_bundle(&font_assets.fira_sans_regular, "World name:"));
 
                 // World name text input
-                commands.spawn((WorldNameValueMarker, input_text_bundle(&font_assets)));
+                commands.spawn((
+                    WorldNameValueMarker,
+                    input_text_bundle(&font_assets.fira_sans_regular),
+                ));
 
                 // World seed input label
                 commands.spawn(label_bundle(
-                    &font_assets,
+                    &font_assets.fira_sans_regular,
                     "Seed (just type something or nothing idk):",
                 ));
 
                 // Seed text input
-                commands.spawn((WorldSeedValueMarker, input_text_bundle(&font_assets)));
+                commands.spawn((
+                    WorldSeedValueMarker,
+                    input_text_bundle(&font_assets.fira_code_regular),
+                ));
 
                 // Buttons
                 make_btn(

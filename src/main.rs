@@ -3,6 +3,7 @@
 mod plugin;
 mod voxel;
 
+use crate::plugin::beef::FixedChunkWorld;
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     log::{Level, LogPlugin},
@@ -86,8 +87,13 @@ fn main() {
             brightness: 0.45,
             ..default()
         })
+        .add_systems(Startup, register_dummy_material)
         .add_systems(OnEnter(AssetState::Ready), (init_world_system, init_ui_system))
-        .add_systems(Update, (update_ui_system.run_if(on_timer(Duration::from_millis(250))), shoot_test_system.run_if(in_state(PauseState::Playing))))
+        .add_systems(Update, (
+            update_ui_system.run_if(on_timer(Duration::from_millis(250))),
+            shoot_test_system.run_if(in_state(PauseState::Playing)),
+            dummy_cube_to_force_earlier_lag_spike_system.run_if(resource_added::<FixedChunkWorld>())
+        ))
         .run();
 }
 
@@ -134,13 +140,45 @@ fn init_world_system(mut commands: Commands) {
     // :)
 }
 
+#[derive(Resource)]
+pub struct DummyThicc {
+    pub material: Handle<StandardMaterial>,
+    pub cube: Handle<Mesh>,
+}
+
+fn register_dummy_material(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    commands.insert_resource(DummyThicc {
+        material: materials.add(Color::WHITE.into()),
+        cube: meshes.add(Cube::new(1.0).into()),
+    });
+}
+
 #[derive(Component)]
 struct FpsText;
 
+fn dummy_cube_to_force_earlier_lag_spike_system(mut commands: Commands, material: Res<DummyThicc>) {
+    commands
+        .spawn(MaterialMeshBundle {
+            mesh: Handle::clone(&material.cube),
+            material: Handle::clone(&material.material),
+            ..default()
+        })
+        .insert((
+            Collider::cuboid(0.5, 0.5, 0.5),
+            ColliderMassProperties::Density(200.0),
+            RigidBody::Dynamic,
+            Ccd::enabled(),
+            PhysTestBox,
+        ));
+}
+
 fn shoot_test_system(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    material: Res<DummyThicc>,
     query: Query<(&Transform, &ActionState<PlyAction>)>,
 ) {
     for (transform, input) in query.iter() {
@@ -148,14 +186,15 @@ fn shoot_test_system(
             let forward = transform.forward();
             commands
                 .spawn(MaterialMeshBundle {
-                    mesh: meshes.add(Cube::new(0.5).into()),
-                    material: materials.add(Color::WHITE.into()),
+                    mesh: Handle::clone(&material.cube),
+                    material: Handle::clone(&material.material),
                     transform: Transform::from_translation(transform.translation + forward * 3.0)
-                        .with_rotation(transform.rotation),
+                        .with_rotation(transform.rotation)
+                        .with_scale(Vec3::splat(0.5)),
                     ..default()
                 })
                 .insert((
-                    Collider::cuboid(0.25, 0.25, 0.25),
+                    Collider::cuboid(0.5, 0.5, 0.5),
                     ColliderMassProperties::Density(200.0),
                     RigidBody::Dynamic,
                     Restitution::new(0.3),

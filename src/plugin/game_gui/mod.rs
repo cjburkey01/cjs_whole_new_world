@@ -99,7 +99,7 @@ fn make_btn(
 ) {
     let mut e = commands.spawn(ButtonBundle {
         style: Style {
-            padding: UiRect::axes(Val::ZERO, Val::Px(10.0)),
+            padding: UiRect::axes(Val::Px(10.0), Val::Px(10.0)),
             justify_content: JustifyContent::Center,
             ..default()
         },
@@ -178,7 +178,7 @@ pub fn menu_title_text_bundle(font_assets: &FontAssets, value: impl Into<String>
     }
 }
 
-pub fn input_text_bundle(font_assets: &FontAssets) -> (NodeBundle, TextInputBundle) {
+pub fn input_text_bundle(font: &Handle<Font>) -> (NodeBundle, TextInputBundle) {
     (
         NodeBundle {
             style: Style {
@@ -193,14 +193,14 @@ pub fn input_text_bundle(font_assets: &FontAssets) -> (NodeBundle, TextInputBund
             ..default()
         },
         TextInputBundle::new(TextStyle {
-            font: Handle::clone(&font_assets.fira_sans_regular),
+            font: Handle::clone(&font),
             font_size: 20.0,
             color: Color::WHITE,
         }),
     )
 }
 
-pub fn label_bundle(font_assets: &FontAssets, text: impl Into<String>) -> TextBundle {
+pub fn label_bundle(font: &Handle<Font>, text: impl Into<String>) -> TextBundle {
     TextBundle {
         style: Style {
             align_self: AlignSelf::FlexStart,
@@ -210,7 +210,7 @@ pub fn label_bundle(font_assets: &FontAssets, text: impl Into<String>) -> TextBu
         text: Text::from_section(
             text,
             TextStyle {
-                font: Handle::clone(&font_assets.fira_sans_regular),
+                font: Handle::clone(&font),
                 font_size: 18.0,
                 color: Color::rgb(0.75, 0.75, 0.75),
             },
