@@ -8,15 +8,16 @@ use bevy::{
     log::{Level, LogPlugin},
     pbr::CascadeShadowConfigBuilder,
     prelude::{shape::Cube, *},
+    time::common_conditions::on_timer,
 };
 use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
 use control::{input::PlyAction, pause::PauseState};
+use game_gui::text_input::TextInputPlugin;
 use leafwing_input_manager::prelude::*;
-use plugin::{chunk_loader, *};
+use plugin::*;
 use rand::random;
-use std::f32::consts::PI;
-use voxel::{world_noise::WorldNoiseSettings, BiomeTable};
+use std::{f32::consts::PI, time::Duration};
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +28,9 @@ pub enum AssetState {
     Loading,
     Ready,
 }
+
+#[derive(Component)]
+pub struct PhysTestBox;
 
 #[allow(unused)]
 #[derive(AssetCollection, Resource)]
@@ -63,12 +67,12 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins((
             InputManagerPlugin::<PlyAction>::default(),
+            TextInputPlugin,
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
             chunk_pos::ChunkPosPlugin,
-            //chunk_map::ChunkMapPlugin,
-            //better_chunk_map::Plugin3000,
             beef::BeefPlugin,
+            game_gui::GameGuiPlugin,
         ))
         .add_state::<AssetState>()
         .add_loading_state(
@@ -81,13 +85,12 @@ fn main() {
             brightness: 0.45,
             ..default()
         })
-        .insert_resource(WorldNoiseSettings::new(42069, BiomeTable::new()))
-        .add_systems(OnEnter(AssetState::Ready), (init_world, init_ui))
-        .add_systems(Update, (update_ui, shoot_test.run_if(in_state(PauseState::Playing))))
+        .add_systems(OnEnter(AssetState::Ready), (init_world_system, init_ui_system))
+        .add_systems(Update, (update_ui_system.run_if(on_timer(Duration::from_millis(250))), shoot_test_system.run_if(in_state(PauseState::Playing))))
         .run();
 }
 
-fn init_world(mut commands: Commands) {
+fn init_world_system(mut commands: Commands) {
     // Lights
     commands.spawn(DirectionalLightBundle {
         transform: Transform::from_translation(Vec3::new(1.0, 3.0, 2.0))
@@ -111,7 +114,7 @@ fn init_world(mut commands: Commands) {
         control::PlyCamBundle {
             camera: Camera3dBundle {
                 projection: Projection::Perspective(PerspectiveProjection {
-                    fov: 80.0 * PI / 180.0,
+                    fov: 65.0 * PI / 180.0,
                     near: 0.01,
                     far: 1000.0,
                     ..default()
@@ -121,7 +124,7 @@ fn init_world(mut commands: Commands) {
             },
             ..default()
         },
-        chunk_loader::ChunkLoader::new(6),
+        //chunk_loader::ChunkLoader::new(6),
         chunk_pos::ChunkPos::default(),
     ));
 
@@ -133,7 +136,7 @@ fn init_world(mut commands: Commands) {
 #[derive(Component)]
 struct FpsText;
 
-fn shoot_test(
+fn shoot_test_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -164,41 +167,60 @@ fn shoot_test(
                         ),
                     },
                     Ccd::enabled(),
+                    PhysTestBox,
                 ));
         }
     }
 }
 
-fn init_ui(mut commands: Commands, fonts: Res<FontAssets>) {
-    commands.spawn(NodeBundle::default()).with_children(|cmds| {
-        cmds.spawn((
-            TextBundle {
-                text: Text::from_sections([
-                    TextSection::new(
-                        "0",
-                        TextStyle {
-                            font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
-                            color: Color::YELLOW,
-                        },
-                    ),
-                    TextSection::new(
-                        " FPS",
-                        TextStyle {
-                            font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
-                            color: Color::WHITE,
-                        },
-                    ),
-                ]),
+fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                position_type: PositionType::Absolute,
                 ..default()
             },
-            FpsText,
-        ));
-    });
+            ..default()
+        })
+        .with_children(|cmds| {
+            cmds.spawn((
+                TextBundle {
+                    text: Text::from_sections([
+                        TextSection::new(
+                            "0",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                        TextSection::new(
+                            " ",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                        TextSection::new(
+                            "FPS",
+                            TextStyle {
+                                font: fonts.fira_sans_regular.clone(),
+                                font_size: 26.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                    ]),
+                    ..default()
+                },
+                FpsText,
+            ));
+        });
 }
 
-fn update_ui(diagnostics: Res<DiagnosticsStore>, mut text: Query<&mut Text, With<FpsText>>) {
+fn update_ui_system(diagnostics: Res<DiagnosticsStore>, mut text: Query<&mut Text, With<FpsText>>) {
     let fps = diagnostics
         .get(FrameTimeDiagnosticsPlugin::FPS)
         .and_then(Diagnostic::average);

@@ -16,16 +16,19 @@ pub struct BeefPlugin;
 
 impl Plugin for BeefPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<FixedChunkMap>()
-            .add_systems(Update, update_loader_states)
-            .add_systems(Update, start_loading.after(update_loader_states))
-            .add_systems(Update, check_queue.after(start_loading));
+        app.add_systems(
+            Update,
+            (update_loader_states, start_loading, check_queue)
+                .chain()
+                .run_if(resource_exists::<FixedChunkWorld>())
+                .run_if(resource_exists::<WorldNoiseSettings>()),
+        );
     }
 }
 
 fn update_loader_states(
     mut commands: Commands,
-    mut chunks: ResMut<FixedChunkMap>,
+    mut chunks: ResMut<FixedChunkWorld>,
     loaders: Query<(&ChunkPos, &ChunkLoader), Changed<ChunkPos>>,
 ) {
     // Only one chunk loader for now
@@ -36,7 +39,7 @@ fn update_loader_states(
 
 fn start_loading(
     mut commands: Commands,
-    mut chunks: ResMut<FixedChunkMap>,
+    mut chunks: ResMut<FixedChunkWorld>,
     noise: Res<WorldNoiseSettings>,
     loaders: Query<(&ChunkPos, &ChunkLoader)>,
 ) {
@@ -50,7 +53,7 @@ fn check_queue(
     mut commands: Commands,
     material: Res<ChunkMaterialRes>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut chunks: ResMut<FixedChunkMap>,
+    mut chunks: ResMut<FixedChunkWorld>,
     mut generate_query: Query<(Entity, &mut GenerateTask), Without<RenderTask>>,
     mut render_query: Query<(Entity, &mut RenderTask), Without<GenerateTask>>,
 ) {
@@ -104,12 +107,23 @@ struct LoadedChunk {
     needed_state: NeededChunkState,
 }
 
-#[derive(Default, Resource)]
-pub struct FixedChunkMap {
+#[allow(unused)]
+#[derive(Resource)]
+pub struct FixedChunkWorld {
+    name: String,
+    seed: u32,
     chunks: HashMap<IVec3, LoadedChunk>,
 }
 
-impl FixedChunkMap {
+impl FixedChunkWorld {
+    pub fn new(name: String, seed: u32) -> Self {
+        Self {
+            name,
+            seed,
+            chunks: default(),
+        }
+    }
+
     pub fn set_needed<'w: 'a, 's: 'a, 'a>(
         &mut self,
         commands: &mut Commands,

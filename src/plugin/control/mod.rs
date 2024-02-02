@@ -12,7 +12,6 @@ pub struct PlyControlPlugin;
 impl Plugin for PlyControlPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<PauseState>()
-            .add_systems(Update, toggle_pause_system)
             .add_systems(
                 Update,
                 (rotate_ply_system, move_ply_system).run_if(in_state(PauseState::Playing)),
@@ -79,18 +78,6 @@ fn rotate_ply_system(
         cam_rot.0.y = cam_rot.0.y.max(-PI / 2.0).min(PI / 2.0);
         transform.rotation = Quat::from_axis_angle(Vec3::Y, -cam_rot.0.x)
             * Quat::from_axis_angle(Vec3::X, cam_rot.0.y);
-    }
-}
-
-fn toggle_pause_system(
-    state: ResMut<State<PauseState>>,
-    mut next_state: ResMut<NextState<PauseState>>,
-    query: Query<&ActionState<PlyAction>>,
-) {
-    for ctrl in query.iter() {
-        if ctrl.just_pressed(PlyAction::Pause) {
-            next_state.set(state.toggled())
-        }
     }
 }
 

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = "0.12.1"
 bevy_asset_loader = "0.19.1"
-bevy_egui = "0.24.0"
+#bevy_egui = "0.24.0"
 bevy_rapier3d = { version = "0.24.0", features = ["enhanced-determinism", "debug-render-3d"] }
 leafwing-input-manager = "0.11.2"
 bitvec = "1.0.1"
@@ -17,6 +17,7 @@ itertools = "0.12.0"
 enum-iterator = "1.5.0"
 num_enum = "0.7.2"
 rand = "0.8.5"
+stable-hash = "0.4.3"
 
 [profile.dev]
 opt-level = 1

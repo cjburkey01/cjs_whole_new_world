@@ -6,12 +6,3 @@ pub enum PauseState {
     Paused,
     Playing,
 }
-
-impl PauseState {
-    pub fn toggled(&self) -> Self {
-        match self {
-            Self::Paused => Self::Playing,
-            Self::Playing => Self::Paused,
-        }
-    }
-}

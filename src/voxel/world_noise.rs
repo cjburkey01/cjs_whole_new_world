@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use itertools::iproduct;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
-    Add, Constant, Fbm, Min, MultiFractal, Multiply, NoiseFn, Perlin,
+    Add, Constant, Fbm, Min, MultiFractal, Multiply, NoiseFn, Perlin, Power,
 };
 use std::sync::Arc;
 
@@ -17,9 +17,9 @@ pub struct Chunk2dNoiseValues {
 
 #[derive(Resource, Clone)]
 pub struct WorldNoiseSettings {
-    heightmap_fbm: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
-    temperature_fbm: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
-    humidity_fbm: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
+    heightmap_noise: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
+    temperature_noise: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
+    humidity_noise: Arc<dyn NoiseFn<f64, 2> + Send + Sync>,
     #[allow(unused)]
     biome_table: BiomeTable,
 }
@@ -29,7 +29,7 @@ impl WorldNoiseSettings {
         let offset_seed = seed.wrapping_mul(34857923) ^ 487529837;
 
         Self {
-            heightmap_fbm: Arc::new(Add::new(
+            heightmap_noise: Arc::new(Add::new(
                 Constant::new(10.0),
                 Add::new(
                     Multiply::new(
@@ -39,23 +39,27 @@ impl WorldNoiseSettings {
                             .set_persistence(0.6),
                     ),
                     Multiply::new(
-                        Constant::new(150.0),
+                        Constant::new(300.0),
                         Min::new(
-                            Fbm::<Perlin>::new(seed).set_frequency(0.01).set_octaves(1),
-                            Fbm::<Perlin>::new(offset_seed)
-                                .set_frequency(0.01)
-                                .set_octaves(1),
+                            Power::new(
+                                Fbm::<Perlin>::new(seed).set_frequency(0.015).set_octaves(1),
+                                Constant::new(2.0),
+                            ),
+                            Power::new(
+                                Fbm::<Perlin>::new(offset_seed)
+                                    .set_frequency(0.015)
+                                    .set_octaves(1),
+                                Constant::new(2.0),
+                            ),
                         ),
                     ),
                 ),
             )),
-            temperature_fbm: Arc::new(
-                Fbm::<Perlin>::new((seed / 3 + 893) + 10)
-                    .set_octaves(2)
-                    .set_frequency(0.003),
+            temperature_noise: Arc::new(
+                Fbm::<Perlin>::new(seed).set_octaves(2).set_frequency(0.003),
             ),
-            humidity_fbm: Arc::new(
-                Fbm::<Perlin>::new(30 * (seed + 4) / 7)
+            humidity_noise: Arc::new(
+                Fbm::<Perlin>::new(offset_seed)
                     .set_octaves(2)
                     .set_frequency(0.014),
             ),
@@ -64,7 +68,7 @@ impl WorldNoiseSettings {
     }
 
     pub fn chunk_2d_noise_fn(
-        noise_fn: Box<&(impl NoiseFn<f64, 2> + ?Sized)>,
+        noise_fn: &(impl NoiseFn<f64, 2> + ?Sized),
         chunk_pos: IVec2,
     ) -> Vec<f64> {
         PlaneMapBuilder::<_, 2>::new(noise_fn)
@@ -79,12 +83,9 @@ impl WorldNoiseSettings {
     pub fn generate_chunk_2d_noise(&self, chunk_pos: IVec2) -> Chunk2dNoiseValues {
         Chunk2dNoiseValues {
             chunk_pos,
-            heightmap: Self::chunk_2d_noise_fn(Box::new(self.heightmap_fbm.as_ref()), chunk_pos),
-            temperature: Self::chunk_2d_noise_fn(
-                Box::new(self.temperature_fbm.as_ref()),
-                chunk_pos,
-            ),
-            humidity: Self::chunk_2d_noise_fn(Box::new(self.humidity_fbm.as_ref()), chunk_pos),
+            heightmap: Self::chunk_2d_noise_fn(self.heightmap_noise.as_ref(), chunk_pos),
+            temperature: Self::chunk_2d_noise_fn(self.temperature_noise.as_ref(), chunk_pos),
+            humidity: Self::chunk_2d_noise_fn(self.humidity_noise.as_ref(), chunk_pos),
         }
     }
 
@@ -93,14 +94,16 @@ impl WorldNoiseSettings {
         let heightmap = noise.heightmap.as_slice();
 
         for (z, x) in iproduct!(0..CHUNK_WIDTH, 0..CHUNK_WIDTH) {
-            let height =
-                heightmap[(z * CHUNK_WIDTH + x) as usize] - (y_level * CHUNK_WIDTH as i32) as f64;
-            for y in 0..(height.max(0.0) as u32).min(CHUNK_WIDTH) {
+            let height_i = heightmap[(z * CHUNK_WIDTH + x) as usize].round() as i32
+                - (y_level * CHUNK_WIDTH as i32);
+            let height_u = (height_i.max(0) as u32).min(CHUNK_WIDTH);
+
+            for y in 0..height_u {
                 chunk.set(
                     InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
-                    match y as f64 {
-                        y if y < (height - 6.0) => Voxel::Stone,
-                        y if y < (height - 3.0) => Voxel::Dirt,
+                    match y {
+                        y if (y as i32) < (height_i - 2) => Voxel::Stone,
+                        y if (y as i32) < (height_i - 1) => Voxel::Dirt,
                         _ => Voxel::Grass,
                     },
                 );
