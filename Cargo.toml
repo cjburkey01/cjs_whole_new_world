@@ -1,12 +1,11 @@
 [package]
 name = "cjs_whole_new_world"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2021"
 
 [dependencies]
 bevy = "0.12.1"
 bevy_asset_loader = "0.19.1"
-#bevy_egui = "0.24.0"
 bevy_rapier3d = { version = "0.24.0", features = ["enhanced-determinism", "debug-render-3d"] }
 leafwing-input-manager = "0.11.2"
 bitvec = "1.0.1"
@@ -23,7 +22,3 @@ stable-hash = "0.4.3"
 opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
-
-# TODO: ONLY WHILE PROFILING!
-[profile.release]
-debug = true
