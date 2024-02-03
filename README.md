@@ -26,4 +26,6 @@
 
 ![Screenshot of v0.0.6 fun with physics cubes](./screenshots/v0.0.6-6.png)
 
-![Gif of of v0.0.7 character controller](./screenshots/v0.0.7.gif)
+![Gif of of v0.0.7 character controller](./screenshots/v0.0.7-1.gif)
+
+![Gif of of v0.0.7 block breaking](./screenshots/v0.0.7-2.png)

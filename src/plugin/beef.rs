@@ -21,8 +21,10 @@ impl Plugin for BeefPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (update_loader_states, start_loading, check_queue)
-                .chain()
+            (
+                update_dirty_chunks,
+                (update_loader_states, start_loading, check_queue).chain(),
+            )
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<WorldNoiseSettings>()),
         )
@@ -30,6 +32,36 @@ impl Plugin for BeefPlugin {
             Update,
             update_loader_radius.run_if(resource_changed::<GameSettings>()),
         );
+    }
+}
+
+fn update_dirty_chunks(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    chunk_world: Res<FixedChunkWorld>,
+    dirty_chunks: Query<&ChunkEntity, With<DirtyChunk>>,
+) {
+    for ChunkEntity(chunk_pos) in dirty_chunks.iter() {
+        if let (
+            Some(LoadedChunk {
+                state: ChunkState::Rendered,
+                chunk: Some(chunk_voxels),
+                entity,
+                ..
+            }),
+            Some(neighbors),
+        ) = (
+            chunk_world.chunks.get(chunk_pos),
+            chunk_world.neighbors(*chunk_pos),
+        ) {
+            if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
+                debug!("update chunk {chunk_pos}");
+                commands
+                    .entity(*entity)
+                    .remove::<DirtyChunk>()
+                    .insert((meshes.add(mesh), collider));
+            }
+        }
     }
 }
 
@@ -85,6 +117,12 @@ fn check_queue(
 pub struct ChunkEntity(pub IVec3);
 
 #[derive(Component)]
+pub struct DirtyChunk;
+
+#[derive(Component)]
+pub struct NewChunkMesh(pub Handle<Mesh>, pub Collider);
+
+#[derive(Component)]
 struct GenerateTask(IVec3, Task<Chunk>);
 
 #[derive(Component)]
@@ -115,11 +153,11 @@ pub enum NeededChunkState {
     Rendered,
 }
 
-struct LoadedChunk {
-    entity: Entity,
-    chunk: Option<Chunk>,
-    state: ChunkState,
-    needed_state: NeededChunkState,
+pub(crate) struct LoadedChunk {
+    pub entity: Entity,
+    pub chunk: Option<Chunk>,
+    pub state: ChunkState,
+    pub needed_state: NeededChunkState,
 }
 
 #[allow(unused)]
@@ -127,7 +165,7 @@ struct LoadedChunk {
 pub struct FixedChunkWorld {
     name: String,
     seed: u32,
-    chunks: HashMap<IVec3, LoadedChunk>,
+    pub(crate) chunks: HashMap<IVec3, LoadedChunk>,
 }
 
 impl FixedChunkWorld {
@@ -267,7 +305,7 @@ impl FixedChunkWorld {
         noise: &WorldNoiseSettings,
         changes: Vec<(IVec3, Entity, NeededStateChange)>,
     ) {
-        let pool = AsyncComputeTaskPool::get();
+        let async_pool = AsyncComputeTaskPool::get();
 
         'outer: for (pos, entity, change) in changes {
             match change {
@@ -281,7 +319,7 @@ impl FixedChunkWorld {
                     let noise = noise.clone();
                     commands.entity(entity).insert(GenerateTask(
                         pos,
-                        pool.spawn(async move {
+                        async_pool.spawn(async move {
                             let new_noise = noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
                             noise.generate_chunk_from_noise(pos.y, &new_noise)
                         }),
@@ -298,7 +336,7 @@ impl FixedChunkWorld {
                     if let Some(cloned_chunk) = chunk.chunk.clone() {
                         commands.entity(entity).insert(RenderTask(
                             pos,
-                            pool.spawn(async move {
+                            async_pool.spawn(async move {
                                 crate::voxel::generate_mesh(&cloned_chunk, neighbors)
                             }),
                         ));

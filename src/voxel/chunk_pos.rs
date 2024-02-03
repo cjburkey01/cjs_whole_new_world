@@ -13,6 +13,10 @@ impl InChunkPos {
         }
     }
 
+    pub fn pos(&self) -> UVec3 {
+        self.0
+    }
+
     pub fn index(&self) -> usize {
         (CHUNK_SQUARE * self.z + CHUNK_WIDTH * self.y + self.x) as usize
     }

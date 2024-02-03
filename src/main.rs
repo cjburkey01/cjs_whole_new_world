@@ -12,11 +12,10 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
-use control::{input::PlyAction, pause::PauseState, PrimaryCamera};
+use control::{input::PlyAction, PrimaryCamera};
 use game_gui::text_input::TextInputPlugin;
 use leafwing_input_manager::prelude::*;
-use plugin::*;
-use rand::random;
+use plugin::{controller_2::PlayerLookAtRes, *};
 use std::time::Duration;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -89,10 +88,7 @@ fn main() {
         })
         .add_systems(Startup, register_dummy_material)
         .add_systems(OnEnter(AssetState::Ready), (init_world_system, init_ui_system))
-        .add_systems(Update, (
-            update_ui_system.run_if(on_timer(Duration::from_millis(250))),
-            shoot_test_system.run_if(in_state(PauseState::Playing)),
-        ))
+        .add_systems(Update, update_ui_system.run_if(on_timer(Duration::from_millis(250))))
         .run();
 }
 
@@ -160,42 +156,17 @@ fn register_dummy_material(
 #[derive(Component)]
 struct FpsText;
 
-fn shoot_test_system(
-    mut commands: Commands,
-    material: Res<DummyThicc>,
-    query: Query<(&Transform, &ActionState<PlyAction>)>,
-) {
-    for (transform, input) in query.iter() {
-        if input.just_pressed(PlyAction::Fire) {
-            let forward = transform.forward();
-            commands
-                .spawn(MaterialMeshBundle {
-                    mesh: Handle::clone(&material.cube),
-                    material: Handle::clone(&material.material),
-                    transform: Transform::from_translation(transform.translation + forward * 3.0)
-                        .with_rotation(transform.rotation)
-                        .with_scale(Vec3::splat(0.5)),
-                    ..default()
-                })
-                .insert((
-                    Collider::cuboid(0.5, 0.5, 0.5),
-                    ColliderMassProperties::Density(200.0),
-                    RigidBody::Dynamic,
-                    Restitution::new(0.3),
-                    Velocity {
-                        linvel: forward * 45.0,
-                        angvel: Vec3::new(
-                            random::<f32>() * 20.0 - 10.0,
-                            random::<f32>() * 20.0 - 10.0,
-                            random::<f32>() * 20.0 - 10.0,
-                        ),
-                    },
-                    Ccd::enabled(),
-                    PhysTestBox,
-                ));
-        }
-    }
-}
+#[derive(Component)]
+struct LookAtGlobalPosText;
+
+#[derive(Component)]
+struct LookAtInChunkPosText;
+
+#[derive(Component)]
+struct LookAtChunkPosText;
+
+#[derive(Component)]
+struct LookAtVoxelText;
 
 fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
@@ -204,6 +175,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 position_type: PositionType::Absolute,
+                flex_direction: FlexDirection::Column,
                 ..default()
             },
             ..default()
@@ -241,16 +213,159 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 },
                 FpsText,
             ));
+
+            cmds.spawn((
+                TextBundle {
+                    text: Text::from_sections([
+                        TextSection::new(
+                            "Looking at voxel pos: ",
+                            TextStyle {
+                                font: fonts.fira_sans_regular.clone(),
+                                font_size: 26.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        TextSection::new(
+                            "",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                    ]),
+                    ..default()
+                },
+                LookAtGlobalPosText,
+            ));
+
+            cmds.spawn((
+                TextBundle {
+                    text: Text::from_sections([
+                        TextSection::new(
+                            "Looking in chunk: ",
+                            TextStyle {
+                                font: fonts.fira_sans_regular.clone(),
+                                font_size: 26.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        TextSection::new(
+                            "",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                    ]),
+                    ..default()
+                },
+                LookAtChunkPosText,
+            ));
+
+            cmds.spawn((
+                TextBundle {
+                    text: Text::from_sections([
+                        TextSection::new(
+                            "Looking at voxel pos in chunk: ",
+                            TextStyle {
+                                font: fonts.fira_sans_regular.clone(),
+                                font_size: 26.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        TextSection::new(
+                            "",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                    ]),
+                    ..default()
+                },
+                LookAtInChunkPosText,
+            ));
+
+            cmds.spawn((
+                TextBundle {
+                    text: Text::from_sections([
+                        TextSection::new(
+                            "Looking at voxel type: ",
+                            TextStyle {
+                                font: fonts.fira_sans_regular.clone(),
+                                font_size: 26.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        TextSection::new(
+                            "",
+                            TextStyle {
+                                font: fonts.fira_code_bold.clone(),
+                                font_size: 26.0,
+                                color: Color::YELLOW,
+                            },
+                        ),
+                    ]),
+                    ..default()
+                },
+                LookAtVoxelText,
+            ));
         });
 }
 
-fn update_ui_system(diagnostics: Res<DiagnosticsStore>, mut text: Query<&mut Text, With<FpsText>>) {
+#[allow(clippy::type_complexity)]
+fn update_ui_system(
+    diagnostics: Res<DiagnosticsStore>,
+    looking_at: Res<PlayerLookAtRes>,
+    mut queries: ParamSet<(
+        Query<&mut Text, With<FpsText>>,
+        Query<&mut Text, With<LookAtGlobalPosText>>,
+        Query<&mut Text, With<LookAtChunkPosText>>,
+        Query<&mut Text, With<LookAtInChunkPosText>>,
+        Query<&mut Text, With<LookAtVoxelText>>,
+    )>,
+) {
     let fps = diagnostics
         .get(FrameTimeDiagnosticsPlugin::FPS)
         .and_then(Diagnostic::average);
     if let Some(fps) = fps {
-        for mut text in text.iter_mut() {
+        if let Ok(mut text) = queries.p0().get_single_mut() {
             text.sections[0].value = format!("{fps:.2}");
         }
+    }
+
+    if let Ok(mut text) = queries.p1().get_single_mut() {
+        text.sections[1].value = looking_at
+            .0
+            .as_ref()
+            .map(|pla| format!("{}", pla.global_voxel_pos))
+            .unwrap_or_else(|| "Nothing".to_string());
+    }
+
+    if let Ok(mut text) = queries.p2().get_single_mut() {
+        text.sections[1].value = looking_at
+            .0
+            .as_ref()
+            .map(|pla| format!("{}", pla.chunk_pos))
+            .unwrap_or_else(|| "Nothing".to_string());
+    }
+
+    if let Ok(mut text) = queries.p3().get_single_mut() {
+        text.sections[1].value = looking_at
+            .0
+            .as_ref()
+            .map(|pla| format!("{}", pla.voxel_pos_in_chunk.pos()))
+            .unwrap_or_else(|| "Nothing".to_string());
+    }
+
+    if let Ok(mut text) = queries.p4().get_single_mut() {
+        text.sections[1].value = looking_at
+            .0
+            .as_ref()
+            .map(|pla| format!("{:?}", pla.voxel))
+            .unwrap_or_else(|| "Nothing".to_string());
     }
 }

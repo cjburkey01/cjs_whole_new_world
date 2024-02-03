@@ -1,10 +1,15 @@
 use super::{
+    beef::{ChunkEntity, ChunkState, FixedChunkWorld, LoadedChunk},
     chunk_pos::ChunkPos,
     control::{
         input::{create_input_manager_bundle, PlyAction},
         pause::PauseState,
         PlyCamRot, PrimaryCamera,
     },
+};
+use crate::{
+    plugin::beef::DirtyChunk,
+    voxel::{InChunkPos, Voxel, CHUNK_WIDTH},
 };
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
@@ -15,15 +20,100 @@ pub struct Controller2ElectricBoogalooPlugin;
 
 impl Plugin for Controller2ElectricBoogalooPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.init_resource::<PlayerLookAtRes>().add_systems(
             Update,
             (
-                update_character_controller_rotations,
-                update_character_controller_position,
+                (look_at_voxels, modify_block_system).chain(),
+                (
+                    update_character_controller_rotations,
+                    update_character_controller_position,
+                )
+                    .chain(),
             )
-                .chain()
                 .run_if(in_state(PauseState::Playing)),
         );
+    }
+}
+
+fn modify_block_system(
+    mut commands: Commands,
+    mut chunks: ResMut<FixedChunkWorld>,
+    look_at: Res<PlayerLookAtRes>,
+    camera: Query<&ActionState<PlyAction>>,
+) {
+    if let Ok(ctrl) = camera.get_single() {
+        if ctrl.just_pressed(PlyAction::Fire) {
+            if let Some(look_at) = &look_at.0 {
+                if let Some(LoadedChunk {
+                    entity,
+                    chunk: Some(chunk),
+                    ..
+                }) = chunks.chunks.get_mut(&look_at.chunk_pos)
+                {
+                    chunk.set(look_at.voxel_pos_in_chunk, Voxel::Air);
+                    commands.entity(*entity).insert(DirtyChunk);
+                }
+            }
+        }
+    }
+}
+
+fn look_at_voxels(
+    chunks: Res<FixedChunkWorld>,
+    rapier_context: Res<RapierContext>,
+    mut look_at: ResMut<PlayerLookAtRes>,
+    mut gizmos: Gizmos,
+    camera: Query<&GlobalTransform, With<PrimaryCamera>>,
+    chunk_query: Query<&ChunkEntity>,
+) {
+    let Ok(camera) = camera.get_single() else {
+        return;
+    };
+
+    look_at.0 = None;
+
+    if let Some((entity, intersection)) = rapier_context.cast_ray_and_get_normal(
+        camera.translation(),
+        camera.forward(),
+        30.0,
+        false,
+        QueryFilter::only_fixed(),
+    ) {
+        if let Ok(ChunkEntity(chunk_pos)) = chunk_query.get(entity) {
+            if let Some(LoadedChunk {
+                chunk: Some(chunk),
+                state: ChunkState::Rendered,
+                ..
+            }) = chunks.chunks.get(chunk_pos)
+            {
+                let global_voxel_pos = (intersection.point - intersection.normal.normalize() * 0.3)
+                    .floor()
+                    .as_ivec3();
+                let voxel_pos_in_chunk = InChunkPos::new(
+                    global_voxel_pos
+                        .rem_euclid(UVec3::splat(CHUNK_WIDTH).as_ivec3())
+                        .as_uvec3(),
+                )
+                .unwrap();
+
+                look_at.0 = Some(PlayerLookAt {
+                    normal: intersection.normal,
+                    chunk_pos: *chunk_pos,
+                    global_voxel_pos,
+                    voxel_pos_in_chunk,
+                    voxel: chunk.at(voxel_pos_in_chunk),
+                });
+
+                gizmos.cuboid(
+                    Transform::from_translation(
+                        (*chunk_pos * CHUNK_WIDTH as i32 + voxel_pos_in_chunk.pos().as_ivec3())
+                            .as_vec3()
+                            + Vec3::splat(0.5),
+                    ),
+                    Color::WHITE,
+                );
+            }
+        }
     }
 }
 
@@ -99,6 +189,18 @@ fn update_character_controller_rotations(
     }
 }
 
+#[derive(Default, Resource)]
+pub struct PlayerLookAtRes(pub Option<PlayerLookAt>);
+
+#[derive(Clone)]
+pub struct PlayerLookAt {
+    pub normal: Vec3,
+    pub chunk_pos: IVec3,
+    pub global_voxel_pos: IVec3,
+    pub voxel_pos_in_chunk: InChunkPos,
+    pub voxel: Voxel,
+}
+
 #[derive(Component)]
 pub struct CharControl2 {
     pub walk_speed: f32,
@@ -142,7 +244,7 @@ impl Default for CharacterControllerParentBundle {
             velocity: CharControl2Velocity::default(),
             rotation: PlyCamRot::default(),
             input_manager: create_input_manager_bundle(),
-            collider: Collider::cuboid(0.5, 1.0, 0.5),
+            collider: Collider::cylinder(1.0, 0.5),
             controller: KinematicCharacterController {
                 up: Vec3::Y,
                 offset: CharacterLength::Absolute(0.01),
