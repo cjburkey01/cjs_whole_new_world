@@ -26,8 +26,10 @@ pub const DIAG_DELETE_REQUIRED: DiagnosticId = DiagnosticId::from_u128(585215975
 pub const DIAG_GENERATED_CHUNKS: DiagnosticId =
     DiagnosticId::from_u128(146207248162236223461132471538);
 pub const DIAG_RENDERED_CHUNKS: DiagnosticId =
-    DiagnosticId::from_u128(97107192228541175912551555411386);
-pub const DIAG_DIRTY_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1071412727657199475159529421);
+    DiagnosticId::from_u128(97107192285412175912551555411386);
+pub const DIAG_VISIBLE_CHUNKS: DiagnosticId = DiagnosticId::from_u128(71159199863847276575201272);
+pub const DIAG_DIRTY_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1071412727699475159529421);
+pub const DIAG_NON_CULLED_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1181181887682219941);
 
 // Best (Even Ever?) Fucker: my chunk loading solution.
 pub struct BeefPlugin;
@@ -56,6 +58,12 @@ impl Plugin for BeefPlugin {
         ))
         .register_diagnostic(Diagnostic::new(DIAG_RENDERED_CHUNKS, "rendered_chunks", 2))
         .register_diagnostic(Diagnostic::new(DIAG_DIRTY_CHUNKS, "dirty_chunks", 2))
+        .register_diagnostic(Diagnostic::new(DIAG_VISIBLE_CHUNKS, "visible_chunks", 2))
+        .register_diagnostic(Diagnostic::new(
+            DIAG_NON_CULLED_CHUNKS,
+            "non_culled_chunks",
+            2,
+        ))
         .add_systems(
             Update,
             (
@@ -81,13 +89,19 @@ impl Plugin for BeefPlugin {
 fn update_diagnostics(
     mut diagnostics: Diagnostics,
     chunk_world: Res<FixedChunkWorld>,
-    dirty_chunks: Query<Entity, With<DirtyChunk>>,
+    dirty_chunks: Query<(), With<DirtyChunk>>,
+    visible_mesh_chunks: Query<&ViewVisibility, (With<ChunkEntity>, With<Handle<Mesh>>)>,
 ) {
     let mut generating_count = 0;
     let mut rendering_count = 0;
     let mut generated_count = 0;
     let mut rendered_count = 0;
     let dirty_count = dirty_chunks.iter().count();
+    let visible_count = visible_mesh_chunks
+        .iter()
+        .map(|v| v.get())
+        .collect::<Vec<_>>();
+    let non_culled_count = visible_count.iter().filter(|b| **b).count();
 
     for state in chunk_world.chunks.values().map(|chunk| chunk.state) {
         match state {
@@ -104,6 +118,8 @@ fn update_diagnostics(
     diagnostics.add_measurement(DIAG_GENERATED_CHUNKS, || generated_count as f64);
     diagnostics.add_measurement(DIAG_RENDERED_CHUNKS, || rendered_count as f64);
     diagnostics.add_measurement(DIAG_DIRTY_CHUNKS, || dirty_count as f64);
+    diagnostics.add_measurement(DIAG_VISIBLE_CHUNKS, || visible_count.len() as f64);
+    diagnostics.add_measurement(DIAG_NON_CULLED_CHUNKS, || non_culled_count as f64);
 }
 
 fn update_dirty_chunks(

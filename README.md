@@ -31,3 +31,5 @@
 ![Screenshot of of v0.0.7 block breaking](./screenshots/v0.0.7-2.png)
 
 ![Screenshot of of v0.0.7 i made a tunnel](./screenshots/v0.0.7-3.png)
+
+![Screenshot of of v0.0.7 dig](./screenshots/v0.0.7-4.png)

@@ -3,7 +3,8 @@ use crate::{
     plugin::{
         beef::{
             DIAG_DELETE_REQUIRED, DIAG_DIRTY_CHUNKS, DIAG_GENERATED_CHUNKS, DIAG_GENERATE_REQUIRED,
-            DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
+            DIAG_NON_CULLED_CHUNKS, DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
+            DIAG_VISIBLE_CHUNKS,
         },
         controller_2::PlayerLookAtRes,
     },
@@ -64,6 +65,12 @@ struct RenderedText;
 
 #[derive(Component)]
 struct DirtyText;
+
+#[derive(Component)]
+struct VisibleChunksText;
+
+#[derive(Component)]
+struct NonCulledChunksText;
 
 fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
@@ -336,6 +343,50 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 ]),
                 DirtyText,
             ));
+
+            cmds.spawn((
+                TextBundle::from_sections([
+                    TextSection::new(
+                        "Visible chunks: ",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    TextSection::new(
+                        "0",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                ]),
+                VisibleChunksText,
+            ));
+
+            cmds.spawn((
+                TextBundle::from_sections([
+                    TextSection::new(
+                        "Non-culled chunks: ",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    TextSection::new(
+                        "0",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                ]),
+                NonCulledChunksText,
+            ));
         });
 }
 
@@ -349,6 +400,7 @@ fn update_ui_system(
         Query<&mut Text, With<LookAtChunkPosText>>,
         Query<&mut Text, With<LookAtInChunkPosText>>,
         Query<&mut Text, With<LookAtVoxelText>>,
+        Query<&mut Text, With<NonCulledChunksText>>,
     )>,
 ) {
     let fps = diagnostics
@@ -402,6 +454,8 @@ fn update_chunk_info_ui_system(
         Query<&mut Text, With<GeneratedText>>,
         Query<&mut Text, With<RenderedText>>,
         Query<&mut Text, With<DirtyText>>,
+        Query<&mut Text, With<VisibleChunksText>>,
+        Query<&mut Text, With<NonCulledChunksText>>,
     )>,
 ) {
     let required_gen_count = diagnostics
@@ -455,6 +509,24 @@ fn update_chunk_info_ui_system(
     if let Some(dirty_count) = dirty_count {
         if let Ok(mut text) = queries.p5().get_single_mut() {
             text.sections[1].value = format!("{}", dirty_count as u32);
+        }
+    }
+
+    let visible_count = diagnostics
+        .get(DIAG_VISIBLE_CHUNKS)
+        .and_then(Diagnostic::value);
+    if let Some(visible_count) = visible_count {
+        if let Ok(mut text) = queries.p6().get_single_mut() {
+            text.sections[1].value = format!("{}", visible_count as u32);
+        }
+    }
+
+    let non_culled_count = diagnostics
+        .get(DIAG_NON_CULLED_CHUNKS)
+        .and_then(Diagnostic::value);
+    if let Some(non_culled_count) = non_culled_count {
+        if let Ok(mut text) = queries.p7().get_single_mut() {
+            text.sections[1].value = format!("{}", non_culled_count as u32);
         }
     }
 }
