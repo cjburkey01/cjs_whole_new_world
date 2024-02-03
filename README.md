@@ -28,4 +28,6 @@
 
 ![Gif of of v0.0.7 character controller](./screenshots/v0.0.7-1.gif)
 
-![Gif of of v0.0.7 block breaking](./screenshots/v0.0.7-2.png)
+![Screenshot of of v0.0.7 block breaking](./screenshots/v0.0.7-2.png)
+
+![Screenshot of of v0.0.7 i made a tunnel](./screenshots/v0.0.7-3.png)

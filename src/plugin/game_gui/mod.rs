@@ -1,9 +1,11 @@
+mod debug_ui;
 mod main_menu;
 mod new_world;
 mod pause_menu;
 mod pause_settings_menu;
 pub mod text_input;
 
+pub use debug_ui::*;
 pub use main_menu::*;
 pub use new_world::*;
 pub use pause_menu::*;
@@ -22,6 +24,7 @@ impl Plugin for GameGuiPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<MenuState>()
             .add_plugins((
+                GameDebugUIPlugin,
                 MainMenuPlugin,
                 NewWorldMenuPlugin,
                 PauseMenuPlugin,

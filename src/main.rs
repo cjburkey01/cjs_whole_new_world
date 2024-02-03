@@ -4,19 +4,17 @@ mod plugin;
 mod voxel;
 
 use bevy::{
-    diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    diagnostic::FrameTimeDiagnosticsPlugin,
     log::{Level, LogPlugin},
     pbr::CascadeShadowConfigBuilder,
     prelude::{shape::Cube, *},
-    time::common_conditions::on_timer,
 };
 use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
 use control::{input::PlyAction, PrimaryCamera};
 use game_gui::text_input::TextInputPlugin;
 use leafwing_input_manager::prelude::*;
-use plugin::{controller_2::PlayerLookAtRes, *};
-use std::time::Duration;
+use plugin::*;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -87,8 +85,6 @@ fn main() {
             ..default()
         })
         .add_systems(Startup, register_dummy_material)
-        .add_systems(OnEnter(AssetState::Ready), (init_world_system, init_ui_system))
-        .add_systems(Update, update_ui_system.run_if(on_timer(Duration::from_millis(250))))
         .run();
 }
 
@@ -151,221 +147,4 @@ fn register_dummy_material(
         material: materials.add(Color::WHITE.into()),
         cube: meshes.add(Cube::new(1.0).into()),
     });
-}
-
-#[derive(Component)]
-struct FpsText;
-
-#[derive(Component)]
-struct LookAtGlobalPosText;
-
-#[derive(Component)]
-struct LookAtInChunkPosText;
-
-#[derive(Component)]
-struct LookAtChunkPosText;
-
-#[derive(Component)]
-struct LookAtVoxelText;
-
-fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                position_type: PositionType::Absolute,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
-            ..default()
-        })
-        .with_children(|cmds| {
-            cmds.spawn((
-                TextBundle {
-                    text: Text::from_sections([
-                        TextSection::new(
-                            "0",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                        TextSection::new(
-                            " ",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                        TextSection::new(
-                            "FPS",
-                            TextStyle {
-                                font: fonts.fira_sans_regular.clone(),
-                                font_size: 26.0,
-                                color: Color::WHITE,
-                            },
-                        ),
-                    ]),
-                    ..default()
-                },
-                FpsText,
-            ));
-
-            cmds.spawn((
-                TextBundle {
-                    text: Text::from_sections([
-                        TextSection::new(
-                            "Looking at voxel pos: ",
-                            TextStyle {
-                                font: fonts.fira_sans_regular.clone(),
-                                font_size: 26.0,
-                                color: Color::WHITE,
-                            },
-                        ),
-                        TextSection::new(
-                            "",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                    ]),
-                    ..default()
-                },
-                LookAtGlobalPosText,
-            ));
-
-            cmds.spawn((
-                TextBundle {
-                    text: Text::from_sections([
-                        TextSection::new(
-                            "Looking in chunk: ",
-                            TextStyle {
-                                font: fonts.fira_sans_regular.clone(),
-                                font_size: 26.0,
-                                color: Color::WHITE,
-                            },
-                        ),
-                        TextSection::new(
-                            "",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                    ]),
-                    ..default()
-                },
-                LookAtChunkPosText,
-            ));
-
-            cmds.spawn((
-                TextBundle {
-                    text: Text::from_sections([
-                        TextSection::new(
-                            "Looking at voxel pos in chunk: ",
-                            TextStyle {
-                                font: fonts.fira_sans_regular.clone(),
-                                font_size: 26.0,
-                                color: Color::WHITE,
-                            },
-                        ),
-                        TextSection::new(
-                            "",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                    ]),
-                    ..default()
-                },
-                LookAtInChunkPosText,
-            ));
-
-            cmds.spawn((
-                TextBundle {
-                    text: Text::from_sections([
-                        TextSection::new(
-                            "Looking at voxel type: ",
-                            TextStyle {
-                                font: fonts.fira_sans_regular.clone(),
-                                font_size: 26.0,
-                                color: Color::WHITE,
-                            },
-                        ),
-                        TextSection::new(
-                            "",
-                            TextStyle {
-                                font: fonts.fira_code_bold.clone(),
-                                font_size: 26.0,
-                                color: Color::YELLOW,
-                            },
-                        ),
-                    ]),
-                    ..default()
-                },
-                LookAtVoxelText,
-            ));
-        });
-}
-
-#[allow(clippy::type_complexity)]
-fn update_ui_system(
-    diagnostics: Res<DiagnosticsStore>,
-    looking_at: Res<PlayerLookAtRes>,
-    mut queries: ParamSet<(
-        Query<&mut Text, With<FpsText>>,
-        Query<&mut Text, With<LookAtGlobalPosText>>,
-        Query<&mut Text, With<LookAtChunkPosText>>,
-        Query<&mut Text, With<LookAtInChunkPosText>>,
-        Query<&mut Text, With<LookAtVoxelText>>,
-    )>,
-) {
-    let fps = diagnostics
-        .get(FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(Diagnostic::average);
-    if let Some(fps) = fps {
-        if let Ok(mut text) = queries.p0().get_single_mut() {
-            text.sections[0].value = format!("{fps:.2}");
-        }
-    }
-
-    if let Ok(mut text) = queries.p1().get_single_mut() {
-        text.sections[1].value = looking_at
-            .0
-            .as_ref()
-            .map(|pla| format!("{}", pla.global_voxel_pos))
-            .unwrap_or_else(|| "Nothing".to_string());
-    }
-
-    if let Ok(mut text) = queries.p2().get_single_mut() {
-        text.sections[1].value = looking_at
-            .0
-            .as_ref()
-            .map(|pla| format!("{}", pla.chunk_pos))
-            .unwrap_or_else(|| "Nothing".to_string());
-    }
-
-    if let Ok(mut text) = queries.p3().get_single_mut() {
-        text.sections[1].value = looking_at
-            .0
-            .as_ref()
-            .map(|pla| format!("{}", pla.voxel_pos_in_chunk.pos()))
-            .unwrap_or_else(|| "Nothing".to_string());
-    }
-
-    if let Ok(mut text) = queries.p4().get_single_mut() {
-        text.sections[1].value = looking_at
-            .0
-            .as_ref()
-            .map(|pla| format!("{:?}", pla.voxel))
-            .unwrap_or_else(|| "Nothing".to_string());
-    }
 }
