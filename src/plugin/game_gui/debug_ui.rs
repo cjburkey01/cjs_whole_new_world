@@ -1,4 +1,14 @@
-use crate::{init_world_system, plugin::controller_2::PlayerLookAtRes, AssetState, FontAssets};
+use crate::{
+    init_world_system,
+    plugin::{
+        beef::{
+            DIAG_DELETE_REQUIRED, DIAG_DIRTY_CHUNKS, DIAG_GENERATED_CHUNKS, DIAG_GENERATE_REQUIRED,
+            DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
+        },
+        controller_2::PlayerLookAtRes,
+    },
+    AssetState, FontAssets,
+};
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
@@ -16,7 +26,8 @@ impl Plugin for GameDebugUIPlugin {
         )
         .add_systems(
             Update,
-            update_ui_system.run_if(on_timer(Duration::from_millis(100))),
+            (update_ui_system, update_chunk_info_ui_system)
+                .run_if(on_timer(Duration::from_millis(100))),
         );
     }
 }
@@ -36,7 +47,7 @@ struct LookAtChunkPosText;
 #[derive(Component)]
 struct LookAtVoxelText;
 
-/*#[derive(Component)]
+#[derive(Component)]
 struct RequiredGenText;
 
 #[derive(Component)]
@@ -52,7 +63,7 @@ struct GeneratedText;
 struct RenderedText;
 
 #[derive(Component)]
-struct DirtyText;*/
+struct DirtyText;
 
 fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
@@ -185,7 +196,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 LookAtVoxelText,
             ));
 
-            /*cmds.spawn(TextBundle::from_section(
+            cmds.spawn(TextBundle::from_section(
                 "Chunk stuff:",
                 TextStyle {
                     font: fonts.fira_sans_regular.clone(),
@@ -324,18 +335,9 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                     ),
                 ]),
                 DirtyText,
-            ));*/
+            ));
         });
 }
-
-/*
-DIAG_GENERATE_REQUIRED
-DIAG_RENDER_REQUIRED
-DIAG_DELETE_REQUIRED
-DIAG_GENERATED_CHUNKS
-DIAG_RENDERED_CHUNKS
-DIAG_DIRTY_CHUNKS
-*/
 
 #[allow(clippy::type_complexity)]
 fn update_ui_system(
@@ -391,7 +393,7 @@ fn update_ui_system(
     }
 }
 
-/*fn update_chunk_info_ui_system(
+fn update_chunk_info_ui_system(
     diagnostics: Res<DiagnosticsStore>,
     mut queries: ParamSet<(
         Query<&mut Text, With<RequiredGenText>>,
@@ -455,4 +457,4 @@ fn update_ui_system(
             text.sections[1].value = format!("{}", dirty_count as u32);
         }
     }
-}*/
+}

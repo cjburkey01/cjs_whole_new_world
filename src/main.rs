@@ -120,7 +120,7 @@ fn init_world_system(mut commands: Commands) {
                         far: 1000.0,
                         ..default()
                     }),
-                    transform: Transform::from_xyz(0.0, 0.9, 0.0),
+                    transform: Transform::from_xyz(0.0, 0.75, 0.0),
                     ..default()
                 },
                 PrimaryCamera,

@@ -126,34 +126,34 @@ fn update_character_controller_position(
         &mut KinematicCharacterController,
         Option<&KinematicCharacterControllerOutput>,
         &CharControl2,
-        &mut CharControl2Velocity,
+        &mut Velocity,
         &ActionState<PlyAction>,
     )>,
 ) {
     for (transform, mut controller, controller_output, ply_cam, mut vel, ctrl) in query.iter_mut() {
         // Move camera
         let key_motion = ctrl.axis_pair(PlyAction::LateralMove).unwrap();
-        let y_velocity = vel.0.y;
-        vel.0 = (transform.rotation * Vec3::new(key_motion.x(), 0.0, -key_motion.y()))
+        let y_velocity = vel.linvel.y;
+        vel.linvel = (transform.rotation * Vec3::new(key_motion.x(), 0.0, -key_motion.y()))
             .normalize_or_zero();
-        vel.0 *= if ctrl.pressed(PlyAction::Fast) {
+        vel.linvel *= if ctrl.pressed(PlyAction::Fast) {
             ply_cam.run_speed
         } else {
             ply_cam.walk_speed
         };
 
-        vel.0.y = y_velocity;
+        vel.linvel.y = y_velocity.min(ply_cam.jump_velocity);
         if let Some(controller_output) = controller_output {
             if controller_output.grounded {
                 if ctrl.just_pressed(PlyAction::Jump) {
-                    vel.0.y = ply_cam.jump_velocity;
+                    vel.linvel.y = ply_cam.jump_velocity;
                 } else {
-                    vel.0.y = 0.0;
+                    vel.linvel.y = 0.0;
                 }
             }
         }
-        vel.0 += phys.gravity * time.delta_seconds();
-        controller.translation = Some(vel.0 * time.delta_seconds());
+        vel.linvel += phys.gravity * time.delta_seconds();
+        controller.translation = Some(vel.linvel * time.delta_seconds());
     }
 }
 
@@ -220,14 +220,11 @@ impl Default for CharControl2 {
     }
 }
 
-#[derive(Default, Component)]
-pub struct CharControl2Velocity(pub Vec3);
-
 #[derive(Bundle)]
 pub struct CharacterControllerParentBundle {
     transform: TransformBundle,
     control_settings: CharControl2,
-    velocity: CharControl2Velocity,
+    velocity: Velocity,
     rotation: PlyCamRot,
     input_manager: InputManagerBundle<PlyAction>,
     collider: Collider,
@@ -240,27 +237,27 @@ impl Default for CharacterControllerParentBundle {
     fn default() -> Self {
         Self {
             transform: TransformBundle::from_transform(Transform::from_xyz(15.5, 145.0, 15.5)),
-            control_settings: CharControl2::default(),
-            velocity: CharControl2Velocity::default(),
-            rotation: PlyCamRot::default(),
+            control_settings: default(),
+            velocity: default(),
+            rotation: default(),
             input_manager: create_input_manager_bundle(),
-            collider: Collider::cylinder(1.0, 0.5),
+            collider: Collider::cylinder(0.8, 0.3),
             controller: KinematicCharacterController {
                 up: Vec3::Y,
-                offset: CharacterLength::Absolute(0.01),
-                slide: false,
+                offset: CharacterLength::Absolute(0.03),
+                slide: true,
                 autostep: Some(CharacterAutostep {
                     max_height: CharacterLength::Absolute(1.1),
-                    min_width: CharacterLength::Absolute(0.15),
+                    min_width: CharacterLength::Absolute(0.25),
                     include_dynamic_bodies: false,
                 }),
-                max_slope_climb_angle: 46.0f32.to_radians() as bevy_rapier3d::prelude::Real,
-                min_slope_slide_angle: 30.0f32.to_radians() as bevy_rapier3d::prelude::Real,
+                // max_slope_climb_angle: 46.0f32.to_radians() as bevy_rapier3d::prelude::Real,
+                // min_slope_slide_angle: 30.0f32.to_radians() as bevy_rapier3d::prelude::Real,
                 apply_impulse_to_dynamic_bodies: true,
                 ..default()
             },
             rigidbody: RigidBody::KinematicPositionBased,
-            chunk_pos: ChunkPos::default(),
+            chunk_pos: default(),
         }
     }
 }

@@ -3,11 +3,14 @@ use crate::{
         chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
         game_settings::GameSettings, voxel_material::ChunkMaterialRes,
     },
-    voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
+    voxel::{
+        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+    },
 };
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
     prelude::*,
+    render::primitives::Aabb,
     tasks::{block_on, AsyncComputeTaskPool, Task},
     utils::HashMap,
 };
@@ -57,7 +60,13 @@ impl Plugin for BeefPlugin {
             Update,
             (
                 update_dirty_chunks,
-                (update_loader_states, start_loading, check_queue).chain(),
+                (
+                    update_loader_states,
+                    update_diagnostics,
+                    start_loading,
+                    check_queue,
+                )
+                    .chain(),
             )
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<WorldNoiseSettings>()),
@@ -69,14 +78,40 @@ impl Plugin for BeefPlugin {
     }
 }
 
-fn update_dirty_chunks(
+fn update_diagnostics(
     mut diagnostics: Diagnostics,
+    chunk_world: Res<FixedChunkWorld>,
+    dirty_chunks: Query<Entity, With<DirtyChunk>>,
+) {
+    let mut generating_count = 0;
+    let mut rendering_count = 0;
+    let mut generated_count = 0;
+    let mut rendered_count = 0;
+    let dirty_count = dirty_chunks.iter().count();
+
+    for state in chunk_world.chunks.values().map(|chunk| chunk.state) {
+        match state {
+            ChunkState::Empty => {}
+            ChunkState::Generating => generating_count += 1,
+            ChunkState::Generated => generated_count += 1,
+            ChunkState::Rendering => rendering_count += 1,
+            ChunkState::Rendered => rendered_count += 1,
+        }
+    }
+
+    diagnostics.add_measurement(DIAG_GENERATE_REQUIRED, || generating_count as f64);
+    diagnostics.add_measurement(DIAG_RENDER_REQUIRED, || rendering_count as f64);
+    diagnostics.add_measurement(DIAG_GENERATED_CHUNKS, || generated_count as f64);
+    diagnostics.add_measurement(DIAG_RENDERED_CHUNKS, || rendered_count as f64);
+    diagnostics.add_measurement(DIAG_DIRTY_CHUNKS, || dirty_count as f64);
+}
+
+fn update_dirty_chunks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     chunk_world: Res<FixedChunkWorld>,
     dirty_chunks: Query<&ChunkEntity, With<DirtyChunk>>,
 ) {
-    let mut dirty = 0;
     for ChunkEntity(chunk_pos) in dirty_chunks.iter() {
         if let (
             Some(LoadedChunk {
@@ -91,7 +126,6 @@ fn update_dirty_chunks(
             chunk_world.neighbors(*chunk_pos),
         ) {
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
-                dirty += 1;
                 commands
                     .entity(*entity)
                     .remove::<DirtyChunk>()
@@ -99,7 +133,6 @@ fn update_dirty_chunks(
             }
         }
     }
-    diagnostics.add_measurement(DIAG_DIRTY_CHUNKS, || dirty as f64);
 }
 
 fn update_loader_states(
@@ -135,7 +168,6 @@ fn start_loading(
 }
 
 fn check_queue(
-    mut diagnostics: Diagnostics,
     mut commands: Commands,
     material: Res<ChunkMaterialRes>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -144,7 +176,6 @@ fn check_queue(
     mut render_query: Query<(Entity, &mut RenderTask), Without<GenerateTask>>,
 ) {
     chunks.collect_finished_tasks(
-        &mut diagnostics,
         &mut commands,
         &material,
         &mut meshes,
@@ -228,7 +259,12 @@ impl FixedChunkWorld {
             .entry(chunk)
             .and_modify(|c| c.needed_state = needed_state)
             .or_insert_with(|| LoadedChunk {
-                entity: commands.spawn(ChunkEntity(chunk)).id(),
+                entity: commands
+                    .spawn((
+                        ChunkEntity(chunk),
+                        Aabb::from_min_max(Vec3::ZERO, UVec3::splat(CHUNK_WIDTH).as_vec3()),
+                    ))
+                    .id(),
                 chunk: None,
                 state: ChunkState::Empty,
                 needed_state,
@@ -348,9 +384,7 @@ impl FixedChunkWorld {
     ) {
         let async_pool = AsyncComputeTaskPool::get();
 
-        let mut required_generate = 0;
-        let mut required_render = 0;
-        let mut required_delete = 0;
+        let mut delete_count = 0;
 
         'outer: for (pos, entity, change) in changes {
             match change {
@@ -369,8 +403,6 @@ impl FixedChunkWorld {
                             noise.generate_chunk_from_noise(pos.y, &new_noise)
                         }),
                     ));
-
-                    required_generate += 1;
                 }
                 NeededStateChange::Render => {
                     let (Some(neighbors), Some(chunk)) =
@@ -387,28 +419,23 @@ impl FixedChunkWorld {
                                 crate::voxel::generate_mesh(&cloned_chunk, neighbors)
                             }),
                         ));
-
-                        required_render += 1;
                     }
                 }
                 NeededStateChange::Delete => {
                     commands.entity(entity).despawn();
                     self.chunks.remove(&pos);
 
-                    required_delete += 1;
+                    delete_count += 1;
                 }
             }
         }
 
-        diagnostics.add_measurement(DIAG_GENERATE_REQUIRED, || required_generate as f64);
-        diagnostics.add_measurement(DIAG_RENDER_REQUIRED, || required_render as f64);
-        diagnostics.add_measurement(DIAG_DELETE_REQUIRED, || required_delete as f64);
+        diagnostics.add_measurement(DIAG_DELETE_REQUIRED, || delete_count as f64);
     }
 
     //noinspection DuplicatedCode
     fn collect_finished_tasks(
         &mut self,
-        diagnostics: &mut Diagnostics,
         commands: &mut Commands,
         material: &ChunkMaterialRes,
         meshes: &mut Assets<Mesh>,
@@ -422,7 +449,6 @@ impl FixedChunkWorld {
             })
             .collect::<Vec<_>>();
 
-        let mut generated_count = 0;
         for (pos, entity, chunk) in generated_chunks {
             let Some(wrapper) = self.chunks.get_mut(&pos) else {
                 continue;
@@ -431,11 +457,8 @@ impl FixedChunkWorld {
             wrapper.chunk = Some(chunk);
             wrapper.state = ChunkState::Generated;
             commands.entity(entity).remove::<GenerateTask>();
-
-            generated_count += 1;
         }
 
-        let mut rendered_count = 0;
         let rendered_chunks = render_query
             .iter_mut()
             .filter_map(|(entity, mut task)| {
@@ -465,11 +488,7 @@ impl FixedChunkWorld {
                 ));
             }
             // imma count it as a render even if the chunk is empty
-            rendered_count += 1;
         }
-
-        diagnostics.add_measurement(DIAG_GENERATED_CHUNKS, || generated_count as f64);
-        diagnostics.add_measurement(DIAG_RENDERED_CHUNKS, || rendered_count as f64);
     }
 }
 
