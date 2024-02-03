@@ -15,6 +15,6 @@ pub struct GameSettings {
 
 impl Default for GameSettings {
     fn default() -> Self {
-        Self { load_radius: 2 }
+        Self { load_radius: 4 }
     }
 }

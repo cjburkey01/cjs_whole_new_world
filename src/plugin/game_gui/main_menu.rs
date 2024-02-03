@@ -6,7 +6,6 @@ use crate::{
     plugin::{
         beef::{ChunkEntity, FixedChunkWorld},
         chunk_loader::ChunkLoader,
-        control::PlyCamControl,
     },
     voxel::world_noise::WorldNoiseSettings,
     FontAssets, PhysTestBox,
@@ -53,7 +52,7 @@ struct ExitButton;
 fn despawn_world_stuffs(
     mut commands: Commands,
     chunk_query: Query<Entity, With<ChunkEntity>>,
-    loaders_query: Query<Entity, (With<ChunkLoader>, Without<PlyCamControl>)>,
+    loaders_query: Query<Entity, With<ChunkLoader>>,
     phys_test_box: Query<Entity, With<PhysTestBox>>,
 ) {
     for chunk in chunk_query.iter() {

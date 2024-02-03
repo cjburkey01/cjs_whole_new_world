@@ -3,7 +3,6 @@
 mod plugin;
 mod voxel;
 
-use crate::plugin::beef::FixedChunkWorld;
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     log::{Level, LogPlugin},
@@ -13,12 +12,12 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
-use control::{input::PlyAction, pause::PauseState};
+use control::{input::PlyAction, pause::PauseState, PrimaryCamera};
 use game_gui::text_input::TextInputPlugin;
 use leafwing_input_manager::prelude::*;
 use plugin::*;
 use rand::random;
-use std::{f32::consts::PI, time::Duration};
+use std::time::Duration;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -73,6 +72,7 @@ fn main() {
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
             chunk_pos::ChunkPosPlugin,
+            controller_2::Controller2ElectricBoogalooPlugin,
             beef::BeefPlugin,
             game_gui::GameGuiPlugin,
         ))
@@ -92,7 +92,6 @@ fn main() {
         .add_systems(Update, (
             update_ui_system.run_if(on_timer(Duration::from_millis(250))),
             shoot_test_system.run_if(in_state(PauseState::Playing)),
-            dummy_cube_to_force_earlier_lag_spike_system.run_if(resource_added::<FixedChunkWorld>())
         ))
         .run();
 }
@@ -116,24 +115,25 @@ fn init_world_system(mut commands: Commands) {
         ..default()
     });
 
-    // Camera
-    commands.spawn((
-        control::PlyCamBundle {
-            camera: Camera3dBundle {
-                projection: Projection::Perspective(PerspectiveProjection {
-                    fov: 65.0 * PI / 180.0,
-                    near: 0.01,
-                    far: 1000.0,
+    // Character controller
+    commands
+        .spawn(controller_2::CharacterControllerParentBundle::default())
+        .with_children(|commands| {
+            // Camera
+            commands.spawn((
+                Camera3dBundle {
+                    projection: Projection::Perspective(PerspectiveProjection {
+                        fov: 65.0f32.to_radians(),
+                        near: 0.01,
+                        far: 1000.0,
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 0.9, 0.0),
                     ..default()
-                }),
-                transform: Transform::from_xyz(0.0, 30.0, 15.0),
-                ..default()
-            },
-            ..default()
-        },
-        //chunk_loader::ChunkLoader::new(6),
-        chunk_pos::ChunkPos::default(),
-    ));
+                },
+                PrimaryCamera,
+            ));
+        });
 
     // Action
 
@@ -159,22 +159,6 @@ fn register_dummy_material(
 
 #[derive(Component)]
 struct FpsText;
-
-fn dummy_cube_to_force_earlier_lag_spike_system(mut commands: Commands, material: Res<DummyThicc>) {
-    commands
-        .spawn(MaterialMeshBundle {
-            mesh: Handle::clone(&material.cube),
-            material: Handle::clone(&material.material),
-            ..default()
-        })
-        .insert((
-            Collider::cuboid(0.5, 0.5, 0.5),
-            ColliderMassProperties::Density(200.0),
-            RigidBody::Dynamic,
-            Ccd::enabled(),
-            PhysTestBox,
-        ));
-}
 
 fn shoot_test_system(
     mut commands: Commands,

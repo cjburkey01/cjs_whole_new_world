@@ -193,7 +193,7 @@ pub fn input_text_bundle(font: &Handle<Font>) -> (NodeBundle, TextInputBundle) {
             ..default()
         },
         TextInputBundle::new(TextStyle {
-            font: Handle::clone(&font),
+            font: Handle::clone(font),
             font_size: 20.0,
             color: Color::WHITE,
         }),
@@ -210,7 +210,7 @@ pub fn label_bundle(font: &Handle<Font>, text: impl Into<String>) -> TextBundle 
         text: Text::from_section(
             text,
             TextStyle {
-                font: Handle::clone(&font),
+                font: Handle::clone(font),
                 font_size: 18.0,
                 color: Color::rgb(0.75, 0.75, 0.75),
             },

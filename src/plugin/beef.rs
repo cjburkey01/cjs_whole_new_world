@@ -1,6 +1,6 @@
 use crate::{
     plugin::{
-        chunk_loader::ChunkLoader, chunk_pos::ChunkPos, control::PlyCamControl,
+        chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
         game_settings::GameSettings, voxel_material::ChunkMaterialRes,
     },
     voxel::{world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, SLICE_DIRECTIONS},
@@ -37,11 +37,16 @@ fn update_loader_states(
     mut commands: Commands,
     mut chunks: ResMut<FixedChunkWorld>,
     game_settings: Res<GameSettings>,
-    loaders: Query<(Ref<ChunkPos>, &ChunkLoader)>,
+    loaders: Query<(&ChunkPos, &ChunkLoader)>,
+    changed_loaders: Query<(&ChunkPos, &ChunkLoader), Changed<ChunkPos>>,
 ) {
-    // Only one chunk loader for now
-    if let Ok((loader_pos, ChunkLoader { radius })) = loaders.get_single() {
-        if loader_pos.is_changed() || game_settings.is_changed() {
+    if game_settings.is_changed() {
+        // Only one chunk loader for now
+        for (loader_pos, ChunkLoader { radius }) in loaders.iter() {
+            chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
+        }
+    } else {
+        for (loader_pos, ChunkLoader { radius }) in changed_loaders.iter() {
             chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
         }
     }
@@ -220,6 +225,13 @@ impl FixedChunkWorld {
             }
         }
 
+        changes.sort_unstable_by(|(pos1, ..), (pos2, ..)| {
+            (*pos1 - loader_chunk)
+                .abs()
+                .min_element()
+                .cmp(&(*pos2 - loader_chunk).abs().min_element())
+        });
+
         changes
     }
 
@@ -360,7 +372,7 @@ impl FixedChunkWorld {
 
 fn update_loader_radius(
     settings: Res<GameSettings>,
-    mut loader: Query<&mut ChunkLoader, With<PlyCamControl>>,
+    mut loader: Query<&mut ChunkLoader, With<CharControl2>>,
 ) {
     if let Ok(mut loader) = loader.get_single_mut() {
         loader.radius = settings.load_radius;
