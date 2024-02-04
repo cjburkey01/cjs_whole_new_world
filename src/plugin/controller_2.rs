@@ -236,7 +236,7 @@ pub struct CharacterControllerParentBundle {
 impl Default for CharacterControllerParentBundle {
     fn default() -> Self {
         Self {
-            transform: TransformBundle::from_transform(Transform::from_xyz(15.5, 145.0, 15.5)),
+            transform: default(),
             control_settings: default(),
             velocity: default(),
             rotation: default(),

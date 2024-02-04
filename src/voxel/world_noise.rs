@@ -93,13 +93,17 @@ impl WorldNoiseSettings {
         let mut chunk = Chunk::default();
         let heightmap = noise.heightmap.as_slice();
 
+        chunk.definitely_empty = true;
+
         for (z, x) in iproduct!(0..CHUNK_WIDTH, 0..CHUNK_WIDTH) {
             let height_i = heightmap[(z * CHUNK_WIDTH + x) as usize].round() as i32
                 - (y_level * CHUNK_WIDTH as i32);
             let height_u = (height_i.max(0) as u32).min(CHUNK_WIDTH);
 
             for y in 0..height_u {
-                chunk.set(
+                chunk.definitely_empty = false;
+                // Call set on the voxel data rather than the chunk, to prevent the extra check
+                chunk.voxels.set(
                     InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
                     match y {
                         y if (y as i32) < (height_i - 2) => Voxel::Stone,

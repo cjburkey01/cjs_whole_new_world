@@ -27,8 +27,10 @@ impl Plugin for GameDebugUIPlugin {
         )
         .add_systems(
             Update,
-            (update_ui_system, update_chunk_info_ui_system)
-                .run_if(on_timer(Duration::from_millis(100))),
+            (
+                update_chunk_info_ui_system,
+                update_ui_system.run_if(on_timer(Duration::from_millis(100))),
+            ),
         );
     }
 }

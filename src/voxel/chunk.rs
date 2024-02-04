@@ -12,6 +12,7 @@ pub struct Chunk {
     /// Make sure you call the update method if the voxels change.
     pub(crate) edge_slice_bits: NeighborChunkSlices,
     pub definitely_empty: bool,
+    pub edges_dirty: bool,
 }
 
 impl Chunk {
@@ -24,6 +25,9 @@ impl Chunk {
         self.voxels.set(pos, voxel);
         if voxel != Voxel::Air {
             self.definitely_empty = false;
+        }
+        if !self.edges_dirty && (pos.min_element() == 0 || pos.max_element() == CHUNK_WIDTH - 1) {
+            self.edges_dirty = true;
         }
     }
 
@@ -39,6 +43,7 @@ impl Chunk {
                 .get_in_direction_mut(slice_dir.normal().negate());
             *bits_at = new_bits;
         }
+        self.edges_dirty = false;
     }
 
     // TODO: THIS IS A VERY HOT FUNCTION!

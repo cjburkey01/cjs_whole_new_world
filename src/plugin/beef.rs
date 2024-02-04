@@ -1,14 +1,13 @@
-use crate::{
-    plugin::{
-        chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
-        game_settings::GameSettings, voxel_material::ChunkMaterialRes,
-    },
-    voxel::{
-        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
-    },
+use super::{
+    chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
+    game_settings::GameSettings, voxel_material::ChunkMaterialRes,
+};
+use crate::voxel::{
+    world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
 };
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
+    ecs::system::EntityCommands,
     prelude::*,
     render::primitives::Aabb,
     tasks::{block_on, AsyncComputeTaskPool, Task},
@@ -67,15 +66,14 @@ impl Plugin for BeefPlugin {
         .add_systems(
             Update,
             (
+                check_dirty_edges,
                 update_dirty_chunks,
-                (
-                    update_loader_states,
-                    update_diagnostics,
-                    start_loading,
-                    check_queue,
-                )
-                    .chain(),
+                update_loader_states,
+                update_diagnostics,
+                start_loading,
+                check_queue,
             )
+                .chain()
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<WorldNoiseSettings>()),
         )
@@ -83,6 +81,32 @@ impl Plugin for BeefPlugin {
             Update,
             update_loader_radius.run_if(resource_changed::<GameSettings>()),
         );
+    }
+}
+
+fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkWorld>) {
+    let mut dirty_edge_chunks = vec![];
+
+    for LoadedChunk { chunk, pos, .. } in chunk_world.chunks.values_mut() {
+        if let Some(chunk) = chunk {
+            if chunk.edges_dirty {
+                chunk.update_edge_slice_bits();
+                dirty_edge_chunks.push(*pos);
+            }
+        }
+    }
+
+    for dirty_edge_chunk in dirty_edge_chunks {
+        for neighbor_dir in SLICE_DIRECTIONS {
+            let neighbor_pos = dirty_edge_chunk + neighbor_dir.normal().to_ivec3();
+            if let Some(LoadedChunk {
+                entity: neighbor_entity,
+                ..
+            }) = chunk_world.chunks.get(&neighbor_pos)
+            {
+                commands.entity(*neighbor_entity).insert(DirtyChunk);
+            }
+        }
     }
 }
 
@@ -125,6 +149,7 @@ fn update_diagnostics(
 fn update_dirty_chunks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    material: Res<ChunkMaterialRes>,
     chunk_world: Res<FixedChunkWorld>,
     dirty_chunks: Query<&ChunkEntity, With<DirtyChunk>>,
 ) {
@@ -141,11 +166,17 @@ fn update_dirty_chunks(
             chunk_world.chunks.get(chunk_pos),
             chunk_world.neighbors(*chunk_pos),
         ) {
+            let mut cmds = commands.entity(*entity);
+            cmds.remove::<DirtyChunk>();
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
-                commands
-                    .entity(*entity)
-                    .remove::<DirtyChunk>()
-                    .insert((meshes.add(mesh), collider));
+                make_mesh_bundle(
+                    &mut cmds,
+                    *chunk_pos,
+                    &mut meshes,
+                    &material,
+                    collider,
+                    mesh,
+                );
             }
         }
     }
@@ -245,6 +276,7 @@ pub(crate) struct LoadedChunk {
     pub chunk: Option<Chunk>,
     pub state: ChunkState,
     pub needed_state: NeededChunkState,
+    pub pos: IVec3,
 }
 
 #[allow(unused)]
@@ -279,11 +311,13 @@ impl FixedChunkWorld {
                     .spawn((
                         ChunkEntity(chunk),
                         Aabb::from_min_max(Vec3::ZERO, UVec3::splat(CHUNK_WIDTH).as_vec3()),
+                        RigidBody::Fixed,
                     ))
                     .id(),
                 chunk: None,
                 state: ChunkState::Empty,
                 needed_state,
+                pos: chunk,
             });
     }
 
@@ -492,20 +526,29 @@ impl FixedChunkWorld {
             let mut e = commands.entity(entity);
             e.remove::<RenderTask>();
             if let Some((collider, mesh)) = opt {
-                e.insert((
-                    MaterialMeshBundle {
-                        mesh: meshes.add(mesh),
-                        material: Handle::clone(&material.0),
-                        transform: ChunkPos { pos }.transform(),
-                        ..default()
-                    },
-                    collider,
-                    RigidBody::Fixed,
-                ));
+                make_mesh_bundle(&mut e, pos, meshes, material, collider, mesh);
             }
-            // imma count it as a render even if the chunk is empty
         }
     }
+}
+
+fn make_mesh_bundle(
+    commands: &mut EntityCommands,
+    pos: IVec3,
+    meshes: &mut Assets<Mesh>,
+    material: &ChunkMaterialRes,
+    collider: Collider,
+    mesh: Mesh,
+) {
+    commands.insert((
+        MaterialMeshBundle {
+            mesh: meshes.add(mesh),
+            material: Handle::clone(&material.0),
+            transform: ChunkPos { pos }.transform(),
+            ..default()
+        },
+        collider,
+    ));
 }
 
 fn update_loader_radius(
