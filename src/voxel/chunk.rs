@@ -32,7 +32,7 @@ impl Chunk {
     }
 
     pub fn as_slice(&self) -> &[Voxel] {
-        self.voxels.0.as_slice()
+        &self.voxels.0
     }
 
     pub fn update_edge_slice_bits(&mut self) {

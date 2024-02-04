@@ -1,5 +1,6 @@
 #![feature(const_option)]
 
+mod io;
 mod plugin;
 mod voxel;
 

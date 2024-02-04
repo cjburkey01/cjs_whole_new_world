@@ -447,6 +447,7 @@ fn update_ui_system(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn update_chunk_info_ui_system(
     diagnostics: Res<DiagnosticsStore>,
     mut queries: ParamSet<(

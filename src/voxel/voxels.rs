@@ -1,4 +1,6 @@
-#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum Voxel {
     #[default]
     Air,

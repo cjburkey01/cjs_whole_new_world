@@ -1,15 +1,11 @@
 use super::{
     input_text_bundle, label_bundle, make_btn, menu_node, menu_title_text_bundle,
-    menu_wrapper_node, update_state_button, was_button_just_pressed, MenuState,
+    menu_wrapper_node, update_state_button, was_button_just_pressed, ActiveMenuButton, MenuState,
 };
 use crate::{
     plugin::{
-        beef::FixedChunkWorld,
-        chunk_loader::ChunkLoader,
-        control::pause::PauseState,
-        controller_2::CharControl2,
-        game_gui::text_input::{TextInput, TextInputInactive, TextValue},
-        game_settings::GameSettings,
+        beef::FixedChunkWorld, chunk_loader::ChunkLoader, control::pause::PauseState,
+        controller_2::CharControl2, game_gui::text_input::TextValue, game_settings::GameSettings,
     },
     voxel::{world_noise::WorldNoiseSettings, BiomeTable},
     FontAssets,
@@ -23,7 +19,7 @@ impl Plugin for NewWorldMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(MenuState::NewWorldMenu),
-            (spawn_new_world_menu_system, disable_text_inputs_system).chain(),
+            spawn_new_world_menu_system,
         )
         .add_systems(
             OnExit(MenuState::NewWorldMenu),
@@ -31,21 +27,16 @@ impl Plugin for NewWorldMenuPlugin {
         )
         .add_systems(
             Update,
-            update_state_button::<ReturnToMainMenuButton, _>(
-                MenuState::NewWorldMenu,
-                MenuState::MainMenu,
+            (
+                update_state_button::<ReturnToMainMenuButton, _>(
+                    MenuState::NewWorldMenu,
+                    MenuState::MainMenu,
+                ),
+                on_pressed_create_button_system
+                    .run_if(was_button_just_pressed::<CreateWorldButton>()),
+                toggle_new_world_button_system,
             ),
-        )
-        .add_systems(
-            Update,
-            on_pressed_create_button_system.run_if(was_button_just_pressed::<CreateWorldButton>()),
         );
-    }
-}
-
-fn disable_text_inputs_system(mut query: Query<&mut TextInputInactive, With<TextInput>>) {
-    for mut inactive in query.iter_mut() {
-        inactive.0 = true;
     }
 }
 
@@ -63,6 +54,27 @@ struct WorldSeedValueMarker;
 
 #[derive(Component)]
 struct ReturnToMainMenuButton;
+
+fn toggle_new_world_button_system(
+    mut commands: Commands,
+    input: Query<&TextValue, With<WorldNameValueMarker>>,
+    button: Query<(Entity, Option<&ActiveMenuButton>), With<CreateWorldButton>>,
+) {
+    if let (Ok(input), Ok((btn_entity, active))) = (
+        input.get_single().map(|i| i.get().trim()),
+        button.get_single(),
+    ) {
+        match (active.is_some(), input.is_empty()) {
+            (true, true) => {
+                commands.entity(btn_entity).remove::<ActiveMenuButton>();
+            }
+            (false, false) => {
+                commands.entity(btn_entity).insert(ActiveMenuButton);
+            }
+            _ => {}
+        }
+    }
+}
 
 fn spawn_new_world_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
     // Entire screen node
@@ -101,7 +113,7 @@ fn spawn_new_world_menu_system(mut commands: Commands, font_assets: Res<FontAsse
                     &font_assets,
                     "Create!",
                     Some(CreateWorldButton),
-                    true,
+                    false,
                 );
                 make_btn(
                     commands,
@@ -131,12 +143,13 @@ fn on_pressed_create_button_system(
 ) {
     let Ok(name) = world_name_text
         .get_single()
-        .map(|txt| txt.get().to_string())
+        .map(|txt| txt.get().trim().to_string())
     else {
         return;
     };
 
-    // If seed is empty, 42069 is the default value! This must stay stable!
+    // If seed is empty, 42069 is the default value! At some point make this
+    // random!
     let seed = fast_stable_hash(
         &world_seed_text
             .get_single()

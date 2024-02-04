@@ -2,8 +2,11 @@ use super::{
     chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
     game_settings::GameSettings, voxel_material::ChunkMaterialRes,
 };
-use crate::voxel::{
-    world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+use crate::{
+    io::write_chunk,
+    voxel::{
+        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+    },
 };
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
@@ -153,7 +156,9 @@ fn update_dirty_chunks(
     chunk_world: Res<FixedChunkWorld>,
     dirty_chunks: Query<&ChunkEntity, With<DirtyChunk>>,
 ) {
-    for ChunkEntity(chunk_pos) in dirty_chunks.iter() {
+    // write_chunk(&self.name, wrapper.pos, &chunk);
+
+    for chunk_pos in dirty_chunks.iter().map(|ChunkEntity(pos)| *pos) {
         if let (
             Some(LoadedChunk {
                 state: ChunkState::Rendered,
@@ -163,20 +168,15 @@ fn update_dirty_chunks(
             }),
             Some(neighbors),
         ) = (
-            chunk_world.chunks.get(chunk_pos),
-            chunk_world.neighbors(*chunk_pos),
+            chunk_world.chunks.get(&chunk_pos),
+            chunk_world.neighbors(chunk_pos),
         ) {
+            write_chunk(&chunk_world.name, chunk_pos, chunk_voxels);
+
             let mut cmds = commands.entity(*entity);
             cmds.remove::<DirtyChunk>();
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
-                make_mesh_bundle(
-                    &mut cmds,
-                    *chunk_pos,
-                    &mut meshes,
-                    &material,
-                    collider,
-                    mesh,
-                );
+                make_mesh_bundle(&mut cmds, chunk_pos, &mut meshes, &material, collider, mesh);
             }
         }
     }
@@ -504,6 +504,7 @@ impl FixedChunkWorld {
                 continue;
             };
 
+            write_chunk(&self.name, wrapper.pos, &chunk);
             wrapper.chunk = Some(chunk);
             wrapper.state = ChunkState::Generated;
             commands.entity(entity).remove::<GenerateTask>();

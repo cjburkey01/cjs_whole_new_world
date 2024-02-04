@@ -148,7 +148,6 @@ fn keyboard(
             }
 
             text.sections[0].value.push(event.char);
-            text_value.0 = format!("{}{}", text.sections[0].value, text.sections[2].value);
         }
 
         for event in events.read() {
@@ -184,6 +183,8 @@ fn keyboard(
         } else {
             text.sections[1].value = "|".to_string();
         }
+
+        text_value.0 = format!("{}{}", text.sections[0].value, text.sections[2].value);
     }
 
     events.clear();

@@ -18,6 +18,11 @@ use text_input::{TextInputBundle, TextInputInactive};
 const BORDER_COLOR_ACTIVE: Color = Color::VIOLET;
 const BORDER_COLOR_INACTIVE: Color = Color::BLACK;
 
+const BUTTON_BG_INACTIVE: Color = Color::rgb(0.65, 0.65, 0.65);
+const BUTTON_BG_NORMAL: Color = Color::WHITE;
+const BUTTON_BG_HOVER: Color = Color::rgb(0.4, 0.8, 0.5);
+const BUTTON_BG_PRESS: Color = Color::rgb(0.5, 0.6, 0.8);
+
 pub struct GameGuiPlugin;
 
 impl Plugin for GameGuiPlugin {
@@ -40,7 +45,11 @@ impl Plugin for GameGuiPlugin {
             )
             .add_systems(
                 Update,
-                update_menu_buttons_system.run_if(in_state(AssetState::Ready)),
+                (
+                    update_remove_active_buttons_system,
+                    update_menu_buttons_system,
+                )
+                    .run_if(in_state(AssetState::Ready)),
             )
             .add_systems(Update, focus_text_input);
     }
@@ -75,20 +84,34 @@ pub enum MenuState {
 }
 
 #[derive(Component)]
-struct ActiveMenuButton;
+pub struct ActiveMenuButton;
 
 #[allow(clippy::type_complexity)]
 fn update_menu_buttons_system(
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor),
-        (Changed<Interaction>, With<ActiveMenuButton>),
+        Or<(
+            (Changed<Interaction>, With<ActiveMenuButton>),
+            Added<ActiveMenuButton>,
+        )>,
     >,
 ) {
     for (interaction, mut bg_color) in &mut interaction_query {
         match interaction {
-            Interaction::Hovered => *bg_color = Color::rgb(0.4, 0.8, 0.5).into(),
-            Interaction::Pressed => *bg_color = Color::rgb(0.5, 0.6, 0.8).into(),
-            Interaction::None => *bg_color = Color::WHITE.into(),
+            Interaction::Hovered => *bg_color = BUTTON_BG_HOVER.into(),
+            Interaction::Pressed => *bg_color = BUTTON_BG_PRESS.into(),
+            Interaction::None => *bg_color = BUTTON_BG_NORMAL.into(),
+        }
+    }
+}
+
+fn update_remove_active_buttons_system(
+    mut removed: RemovedComponents<ActiveMenuButton>,
+    mut background_color: Query<&mut BackgroundColor, With<Interaction>>,
+) {
+    for entity in removed.read() {
+        if let Ok(mut background_color) = background_color.get_mut(entity) {
+            *background_color = BUTTON_BG_INACTIVE.into();
         }
     }
 }
@@ -106,7 +129,7 @@ fn make_btn(
             justify_content: JustifyContent::Center,
             ..default()
         },
-        background_color: Color::rgb(0.65, 0.65, 0.65).into(),
+        background_color: BUTTON_BG_INACTIVE.into(),
         ..default()
     });
     if let Some(bundle) = bundle {
@@ -222,9 +245,11 @@ pub fn label_bundle(font: &Handle<Font>, text: impl Into<String>) -> TextBundle 
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn was_button_just_pressed<BtnComp: Component>(
-) -> impl Fn(Query<&Interaction, (Changed<Interaction>, With<BtnComp>)>) -> bool {
-    |query: Query<&Interaction, (Changed<Interaction>, With<BtnComp>)>| {
+) -> impl Fn(Query<&Interaction, (Changed<Interaction>, With<BtnComp>, With<ActiveMenuButton>)>) -> bool
+{
+    |query: Query<&Interaction, (Changed<Interaction>, With<BtnComp>, With<ActiveMenuButton>)>| {
         query
             .iter()
             .any(|interaction| *interaction == Interaction::Pressed)

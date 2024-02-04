@@ -1,21 +1,41 @@
 use super::{InChunkPos, Voxel, CHUNK_CUBE};
-use std::ops::{Deref, DerefMut};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 
-pub struct VoxelContainer(pub Box<[Voxel; CHUNK_CUBE as usize]>);
+#[serde_as]
+#[derive(Deserialize, Serialize)]
+pub struct VoxelContainerInner(
+    #[serde_as(as = "Box<[_; CHUNK_CUBE as usize]>")] pub Box<[Voxel; CHUNK_CUBE as usize]>,
+);
 
-impl Default for VoxelContainer {
+impl Default for VoxelContainerInner {
     fn default() -> Self {
         Self(Box::new([Voxel::default(); CHUNK_CUBE as usize]))
     }
 }
 
-impl Clone for VoxelContainer {
+impl Clone for VoxelContainerInner {
     fn clone(&self) -> Self {
         Self(Box::new(*self.0.as_ref()))
     }
 }
 
-impl Deref for VoxelContainer {
+impl Index<usize> for VoxelContainerInner {
+    type Output = Voxel;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for VoxelContainerInner {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+impl Deref for VoxelContainerInner {
     type Target = [Voxel];
 
     fn deref(&self) -> &Self::Target {
@@ -23,22 +43,25 @@ impl Deref for VoxelContainer {
     }
 }
 
-impl DerefMut for VoxelContainer {
+impl DerefMut for VoxelContainerInner {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.as_mut_slice()
     }
 }
 
+#[derive(Default, Clone, Deserialize, Serialize)]
+pub struct VoxelContainer(pub VoxelContainerInner);
+
 impl VoxelContainer {
     #[allow(unused)]
     pub fn from_voxel(voxel: Voxel) -> Self {
-        Self(Box::new([voxel; CHUNK_CUBE as usize]))
+        Self(VoxelContainerInner(Box::new([voxel; CHUNK_CUBE as usize])))
     }
 
     #[allow(unused)]
     pub fn from_voxels(voxels: Vec<Voxel>) -> Option<Self> {
         match voxels.len() as u32 {
-            CHUNK_CUBE => Some(Self(voxels.try_into().ok()?)),
+            CHUNK_CUBE => Some(Self(VoxelContainerInner(voxels.try_into().ok()?))),
             _ => None,
         }
     }
