@@ -16,6 +16,15 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    pub fn from_container(voxels: VoxelContainer) -> Self {
+        let mut this_chunk = Self {
+            voxels,
+            ..default()
+        };
+        this_chunk.update_edge_slice_bits();
+        this_chunk
+    }
+
     #[allow(unused)]
     pub fn at(&self, pos: InChunkPos) -> Voxel {
         self.voxels.at(pos)

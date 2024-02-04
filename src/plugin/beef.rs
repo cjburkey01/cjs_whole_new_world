@@ -3,7 +3,8 @@ use super::{
     game_settings::GameSettings, voxel_material::ChunkMaterialRes,
 };
 use crate::{
-    io::write_chunk,
+    io::{read_chunk_from_file, write_chunk_to_file},
+    plugin::saver::IoCleanChunk,
     voxel::{
         world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
     },
@@ -171,10 +172,9 @@ fn update_dirty_chunks(
             chunk_world.chunks.get(&chunk_pos),
             chunk_world.neighbors(chunk_pos),
         ) {
-            write_chunk(&chunk_world.name, chunk_pos, chunk_voxels);
-
             let mut cmds = commands.entity(*entity);
             cmds.remove::<DirtyChunk>();
+            cmds.remove::<IoCleanChunk>();
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
                 make_mesh_bundle(&mut cmds, chunk_pos, &mut meshes, &material, collider, mesh);
             }
@@ -294,6 +294,10 @@ impl FixedChunkWorld {
             seed,
             chunks: default(),
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn set_needed<'w: 'a, 's: 'a, 'a>(
@@ -446,11 +450,21 @@ impl FixedChunkWorld {
 
                     chunk.state = ChunkState::Generating;
                     let noise = noise.clone();
+                    let name = self.name.clone();
                     commands.entity(entity).insert(GenerateTask(
                         pos,
                         async_pool.spawn(async move {
-                            let new_noise = noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
-                            noise.generate_chunk_from_noise(pos.y, &new_noise)
+                            match read_chunk_from_file(&name, pos) {
+                                Some(existing_chunk) => {
+                                    debug!("loaded chunk at {pos}");
+                                    Chunk::from_container(existing_chunk)
+                                }
+                                None => {
+                                    let new_noise =
+                                        noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
+                                    noise.generate_chunk_from_noise(pos.y, &new_noise)
+                                }
+                            }
                         }),
                     ));
                 }
@@ -472,6 +486,12 @@ impl FixedChunkWorld {
                     }
                 }
                 NeededStateChange::Delete => {
+                    if let Some(LoadedChunk {
+                        chunk: Some(chunk), ..
+                    }) = self.chunks.get(&pos)
+                    {
+                        write_chunk_to_file(&self.name, pos, &chunk.voxels);
+                    }
                     commands.entity(entity).despawn();
                     self.chunks.remove(&pos);
 
@@ -504,7 +524,6 @@ impl FixedChunkWorld {
                 continue;
             };
 
-            write_chunk(&self.name, wrapper.pos, &chunk);
             wrapper.chunk = Some(chunk);
             wrapper.state = ChunkState::Generated;
             commands.entity(entity).remove::<GenerateTask>();

@@ -73,6 +73,7 @@ fn main() {
             controller_2::Controller2ElectricBoogalooPlugin,
             beef::BeefPlugin,
             game_gui::GameGuiPlugin,
+            saver::SaverPlugin,
         ))
         .add_state::<AssetState>()
         .add_loading_state(
