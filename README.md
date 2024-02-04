@@ -1,5 +1,8 @@
 # A Whole New World
 
+[![Latest version](https://img.shields.io/github/v/release/cjburkey01/cjs_whole_new_world?include_prereleases&sort=date&display_name=release&logo=github
+)](https://github.com/cjburkey01/cjs_whole_new_world/releases)
+
 *by CJ*
 
 ### Screenshots
