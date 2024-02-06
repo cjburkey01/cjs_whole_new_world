@@ -38,13 +38,13 @@ pub fn chunk_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
 }
 
 pub fn write_chunk_to_file(world_name: &str, chunk_pos: IVec3, chunk_container: &VoxelContainer) {
-    std::fs::create_dir_all(&chunks_dir(world_name)).unwrap();
+    std::fs::create_dir_all(chunks_dir(world_name)).unwrap();
     let chunk_file_path = chunk_file(world_name, chunk_pos);
 
     // Serialize chunk
     let data = bincode::serde::encode_to_vec(chunk_container, SERIAL_CONFIG).unwrap();
 
-    let file_writer = BufWriter::new(File::create(&chunk_file_path).unwrap());
+    let file_writer = BufWriter::new(File::create(chunk_file_path).unwrap());
     let mut gzip_encoder = GzEncoder::new(file_writer, Compression::default());
     gzip_encoder.write_all(&data[..]).unwrap();
     let mut file_writer = gzip_encoder.finish().unwrap();
