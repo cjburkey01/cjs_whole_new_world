@@ -27,20 +27,20 @@ impl RegionHandler {
             .or_insert_with(|| VoxelRegion::default())
     }
 
-    pub fn chunk(&self, chunk_pos: IVec3) -> Option<&Chunk> {
+    pub fn chunk(&self, chunk_pos: IVec3) -> Option<&VoxelContainer> {
         let region_pos = chunk_pos / REGION_WIDTH as i32;
         self.region(region_pos)
             .and_then(|region| region.chunk(InRegionChunkPos::from_world(chunk_pos)))
     }
 
-    pub fn get_chunk_mut(&mut self, chunk_pos: IVec3) -> Option<&mut Chunk> {
+    pub fn get_chunk_mut(&mut self, chunk_pos: IVec3) -> Option<&mut VoxelContainer> {
         let region_pos = chunk_pos / REGION_WIDTH as i32;
         self.get_region_mut(region_pos)?
             .chunk_mut(InRegionChunkPos::from_world(chunk_pos))
             .as_mut()
     }
 
-    pub fn chunk_mut(&mut self, chunk_pos: IVec3) -> &mut Option<Chunk> {
+    pub fn chunk_mut(&mut self, chunk_pos: IVec3) -> &mut Option<VoxelContainer> {
         let region_pos = chunk_pos / REGION_WIDTH as i32;
         self.region_mut(region_pos)
             .chunk_mut(InRegionChunkPos::from_world(chunk_pos))
@@ -51,7 +51,7 @@ impl RegionHandler {
 #[derive(Deserialize, Serialize)]
 pub struct VoxelRegion {
     #[serde_as(as = "Box<[_; REGION_CUBE as usize]>")]
-    chunks: Box<[Option<Chunk>; REGION_CUBE as usize]>,
+    chunks: Box<[Option<VoxelContainer>; REGION_CUBE as usize]>,
 }
 
 impl Default for VoxelRegion {
@@ -63,19 +63,19 @@ impl Default for VoxelRegion {
 }
 
 impl VoxelRegion {
-    pub fn chunk(&self, pos: InRegionChunkPos) -> Option<&Chunk> {
+    pub fn chunk(&self, pos: InRegionChunkPos) -> Option<&VoxelContainer> {
         self.chunks[pos.index()].as_ref()
     }
 
-    pub fn chunk_mut(&mut self, pos: InRegionChunkPos) -> &mut Option<Chunk> {
+    pub fn chunk_mut(&mut self, pos: InRegionChunkPos) -> &mut Option<VoxelContainer> {
         &mut self.chunks[pos.index()]
     }
 
-    pub fn chunks(&self) -> &[Option<Chunk>] {
+    pub fn chunks(&self) -> &[Option<VoxelContainer>] {
         self.chunks.as_slice()
     }
 
-    pub fn chunks_mut(&mut self) -> &mut [Option<Chunk>] {
+    pub fn chunks_mut(&mut self) -> &mut [Option<VoxelContainer>] {
         self.chunks.as_mut_slice()
     }
 }

@@ -5,15 +5,13 @@ use super::{
 use bevy::prelude::*;
 use bitvec::prelude::BitVec;
 use itertools::iproduct;
-use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone)]
 pub struct Chunk {
     pub(crate) voxels: VoxelContainer,
     pub definitely_empty: bool,
     /// Make sure you call the update method if the voxels change.
     pub(crate) edge_slice_bits: NeighborChunkSlices,
-    #[serde(skip)]
     pub edges_dirty: bool,
 }
 

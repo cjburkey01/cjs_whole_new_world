@@ -51,12 +51,14 @@ fn modify_block_system(
     if let Ok(ctrl) = camera.get_single() {
         if ctrl.just_pressed(PlyAction::Fire) {
             if let Some(look_at) = &look_at.0 {
-                let ent = chunks.chunks.get(&look_at.chunk_pos).map(|lc| lc.entity);
-                if let (Some(entity), Some(chunk)) =
-                    (ent, chunks.regions.get_chunk_mut(look_at.chunk_pos))
+                if let Some(LoadedChunk {
+                    entity,
+                    chunk: Some(chunk),
+                    ..
+                }) = chunks.chunks.get_mut(&look_at.chunk_pos)
                 {
                     chunk.set(look_at.voxel_pos_in_chunk, Voxel::Air);
-                    commands.entity(entity).insert(DirtyChunk);
+                    commands.entity(*entity).insert(DirtyChunk);
                 }
             }
         }
@@ -88,12 +90,13 @@ fn look_at_voxels(
             if let (
                 Some(LoadedChunk {
                     state: ChunkState::Rendered,
+                    chunk: Some(chunk),
                     ..
                 }),
-                Some(chunk),
+                //Some(chunk),
             ) = (
                 chunks.chunks.get(chunk_pos),
-                chunks.regions.chunk(*chunk_pos),
+                //chunks.regions.chunk(*chunk_pos),
             ) {
                 let global_voxel_pos = (intersection.point - intersection.normal.normalize() * 0.3)
                     .floor()

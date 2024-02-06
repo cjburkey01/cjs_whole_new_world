@@ -1,7 +1,7 @@
-use super::VoxelAxis;
+use super::{VoxelAxis, CHUNK_SQUARE};
 use bitvec::prelude::BitVec;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct NeighborChunkSlices {
     pos_x: BitVec,
     pos_y: BitVec,
@@ -9,6 +9,20 @@ pub struct NeighborChunkSlices {
     neg_x: BitVec,
     neg_y: BitVec,
     neg_z: BitVec,
+}
+
+impl Default for NeighborChunkSlices {
+    fn default() -> Self {
+        let empty = BitVec::repeat(false, CHUNK_SQUARE as usize);
+        Self {
+            pos_x: empty.clone(),
+            pos_y: empty.clone(),
+            pos_z: empty.clone(),
+            neg_x: empty.clone(),
+            neg_y: empty.clone(),
+            neg_z: empty,
+        }
+    }
 }
 
 impl NeighborChunkSlices {

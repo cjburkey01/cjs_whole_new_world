@@ -1,4 +1,4 @@
-use crate::voxel::{Chunk, VoxelRegion};
+use crate::voxel::{Chunk, VoxelContainer, VoxelRegion};
 use bevy::prelude::IVec3;
 use bincode::config::Configuration;
 use directories::ProjectDirs;
@@ -47,17 +47,14 @@ pub fn save_region_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
     save_chunks_dir(world_name).join(format!("{x}_{y}_{z}.chunk.gz"))
 }
 
-pub fn write_chunk_to_file(world_name: &str, chunk_pos: IVec3, chunk: &Chunk) {
+pub fn write_chunk_to_file(world_name: &str, chunk_pos: IVec3, chunk: &VoxelContainer) {
     std::fs::create_dir_all(save_chunks_dir(world_name)).unwrap();
     let chunk_file_path = save_chunk_file(world_name, chunk_pos);
     write_to_file(&chunk_file_path, chunk);
 }
 
-pub fn read_chunk_from_file(world_name: &str, chunk_pos: IVec3) -> Option<Chunk> {
-    read_from_file::<Chunk>(&save_chunk_file(world_name, chunk_pos)).map(|mut chunk| {
-        chunk.update_edge_slice_bits();
-        chunk
-    })
+pub fn read_chunk_from_file(world_name: &str, chunk_pos: IVec3) -> Option<VoxelContainer> {
+    read_from_file(&save_chunk_file(world_name, chunk_pos))
 }
 
 pub fn write_region_to_file(world_name: &str, chunk_pos: IVec3, region: &VoxelRegion) {
