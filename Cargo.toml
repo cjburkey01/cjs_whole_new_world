@@ -4,6 +4,7 @@ version = "0.0.8"
 edition = "2021"
 
 [dependencies]
+flate2 = "1.0.28"
 lazy_static = "1.4.0"
 serde = "1.0.196"
 serde_with = "3.6.0"

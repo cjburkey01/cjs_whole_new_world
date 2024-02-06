@@ -2,7 +2,7 @@ use crate::{
     io::write_chunk_to_file,
     plugin::beef::{ChunkEntity, FixedChunkWorld},
 };
-use bevy::{prelude::*, time::common_conditions::on_timer};
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer};
 use std::time::Duration;
 
 pub struct SaverPlugin;
@@ -26,12 +26,18 @@ fn save_io_dirty_chunks(
     chunk_world: Res<FixedChunkWorld>,
     dirty: Query<(Entity, &ChunkEntity), Without<IoCleanChunk>>,
 ) {
+    let pool = AsyncComputeTaskPool::get();
+
     for (entity, ChunkEntity(pos)) in dirty.iter() {
         if let Some(mut entity) = commands.get_entity(entity) {
             entity.insert(IoCleanChunk);
         }
         if let Some(chunk) = &chunk_world.chunks.get(pos).unwrap().chunk {
-            write_chunk_to_file(chunk_world.name(), *pos, &chunk.voxels);
+            let cloned_chunk = chunk.clone();
+            let name = chunk_world.name().to_string();
+            let pos = *pos;
+            pool.spawn(async move { write_chunk_to_file(&name, pos, &cloned_chunk.voxels) })
+                .detach();
         }
     }
 }

@@ -4,8 +4,12 @@ use super::{
 };
 use crate::{
     plugin::{
-        beef::FixedChunkWorld, chunk_loader::ChunkLoader, control::pause::PauseState,
-        controller_2::CharControl2, game_gui::text_input::TextValue, game_settings::GameSettings,
+        beef::FixedChunkWorld,
+        chunk_loader::ChunkLoader,
+        control::pause::PauseState,
+        controller_2::{CharControl2, PlayerStartFrozen},
+        game_gui::text_input::TextValue,
+        game_settings::GameSettings,
     },
     voxel::{world_noise::WorldNoiseSettings, BiomeTable},
     FontAssets,
@@ -168,6 +172,7 @@ fn on_pressed_create_button_system(
         commands.entity(entity).insert((
             Transform::from_xyz(15.5, 145.0, 15.5),
             ChunkLoader::new(game_settings.load_radius),
+            PlayerStartFrozen,
         ));
     }
 }

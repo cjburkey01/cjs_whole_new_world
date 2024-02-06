@@ -1383,6 +1383,7 @@ dependencies = [
  "bitvec",
  "directories",
  "enum-iterator",
+ "flate2",
  "futures-lite 2.2.0",
  "itertools",
  "lazy_static",

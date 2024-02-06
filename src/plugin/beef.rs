@@ -488,14 +488,16 @@ impl FixedChunkWorld {
                 NeededStateChange::Delete => {
                     if let Some(LoadedChunk {
                         chunk: Some(chunk), ..
-                    }) = self.chunks.get(&pos)
+                    }) = self.chunks.remove(&pos)
                     {
-                        write_chunk_to_file(&self.name, pos, &chunk.voxels);
-                    }
-                    commands.entity(entity).despawn();
-                    self.chunks.remove(&pos);
+                        let name = self.name.to_string();
+                        async_pool
+                            .spawn(async move { write_chunk_to_file(&name, pos, &chunk.voxels) })
+                            .detach();
 
-                    delete_count += 1;
+                        commands.entity(entity).despawn();
+                        delete_count += 1;
+                    }
                 }
             }
         }

@@ -11,10 +11,10 @@ use crate::{
     plugin::beef::DirtyChunk,
     voxel::{InChunkPos, Voxel, CHUNK_WIDTH},
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, time::common_conditions::on_timer};
 use bevy_rapier3d::prelude::*;
 use leafwing_input_manager::{action_state::ActionState, InputManagerBundle};
-use std::f32::consts::PI;
+use std::{f32::consts::PI, time::Duration};
 
 pub struct Controller2ElectricBoogalooPlugin;
 
@@ -29,9 +29,16 @@ impl Plugin for Controller2ElectricBoogalooPlugin {
                     update_character_controller_position,
                 )
                     .chain(),
+                unfreeze_after_time_system.run_if(on_timer(Duration::from_secs(5))),
             )
                 .run_if(in_state(PauseState::Playing)),
         );
+    }
+}
+
+fn unfreeze_after_time_system(mut commands: Commands, ply: Query<Entity, With<PlayerStartFrozen>>) {
+    if let Ok(ply) = ply.get_single() {
+        commands.entity(ply).remove::<PlayerStartFrozen>();
     }
 }
 
@@ -121,14 +128,17 @@ fn look_at_voxels(
 fn update_character_controller_position(
     time: Res<Time>,
     phys: Res<RapierConfiguration>,
-    mut query: Query<(
-        &Transform,
-        &mut KinematicCharacterController,
-        Option<&KinematicCharacterControllerOutput>,
-        &CharControl2,
-        &mut Velocity,
-        &ActionState<PlyAction>,
-    )>,
+    mut query: Query<
+        (
+            &Transform,
+            &mut KinematicCharacterController,
+            Option<&KinematicCharacterControllerOutput>,
+            &CharControl2,
+            &mut Velocity,
+            &ActionState<PlyAction>,
+        ),
+        Without<PlayerStartFrozen>,
+    >,
 ) {
     for (transform, mut controller, controller_output, ply_cam, mut vel, ctrl) in query.iter_mut() {
         // Move camera
@@ -219,6 +229,9 @@ impl Default for CharControl2 {
         }
     }
 }
+
+#[derive(Component)]
+pub struct PlayerStartFrozen;
 
 #[derive(Bundle)]
 pub struct CharacterControllerParentBundle {
