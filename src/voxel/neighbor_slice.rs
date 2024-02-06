@@ -1,7 +1,7 @@
 use super::VoxelAxis;
 use bitvec::prelude::BitVec;
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct NeighborChunkSlices {
     pos_x: BitVec,
     pos_y: BitVec,

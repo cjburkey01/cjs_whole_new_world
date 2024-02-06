@@ -21,6 +21,8 @@ impl Plugin for SaverPlugin {
 #[derive(Component)]
 pub struct IoCleanChunk;
 
+// TODO: SAVE REGIONS INSTEAD OF CHUNKS
+//       JUST SAVE THE WHOLE WORLD EVERY ONCE IN A WHILE
 fn save_io_dirty_chunks(
     mut commands: Commands,
     chunk_world: Res<FixedChunkWorld>,
@@ -32,11 +34,11 @@ fn save_io_dirty_chunks(
         if let Some(mut entity) = commands.get_entity(entity) {
             entity.insert(IoCleanChunk);
         }
-        if let Some(chunk) = &chunk_world.chunks.get(pos).unwrap().chunk {
+        if let Some(chunk) = chunk_world.regions.chunk(*pos) {
             let cloned_chunk = chunk.clone();
             let name = chunk_world.name().to_string();
             let pos = *pos;
-            pool.spawn(async move { write_chunk_to_file(&name, pos, &cloned_chunk.voxels) })
+            pool.spawn(async move { write_chunk_to_file(&name, pos, &cloned_chunk) })
                 .detach();
         }
     }

@@ -6,7 +6,8 @@ use crate::{
     io::{read_chunk_from_file, write_chunk_to_file},
     plugin::saver::IoCleanChunk,
     voxel::{
-        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, RegionHandler, CHUNK_WIDTH,
+        SLICE_DIRECTIONS,
     },
 };
 use bevy::{
@@ -19,7 +20,7 @@ use bevy::{
 };
 use bevy_rapier3d::{dynamics::RigidBody, prelude::Collider};
 use futures_lite::future::poll_once;
-use itertools::iproduct;
+use itertools::{iproduct, Itertools};
 
 pub const DIAG_GENERATE_REQUIRED: DiagnosticId =
     DiagnosticId::from_u128(20645138512437775160238241943797);
@@ -91,11 +92,17 @@ impl Plugin for BeefPlugin {
 fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkWorld>) {
     let mut dirty_edge_chunks = vec![];
 
-    for LoadedChunk { chunk, pos, .. } in chunk_world.chunks.values_mut() {
-        if let Some(chunk) = chunk {
+    let loaded_chunks = chunk_world
+        .chunks
+        .values()
+        .map(|lc| lc.pos)
+        .collect::<Vec<_>>();
+
+    for pos in loaded_chunks {
+        if let Some(chunk) = chunk_world.regions.get_chunk_mut(pos) {
             if chunk.edges_dirty {
                 chunk.update_edge_slice_bits();
-                dirty_edge_chunks.push(*pos);
+                dirty_edge_chunks.push(pos);
             }
         }
     }
@@ -163,14 +170,16 @@ fn update_dirty_chunks(
         if let (
             Some(LoadedChunk {
                 state: ChunkState::Rendered,
-                chunk: Some(chunk_voxels),
+                //chunk: Some(chunk_voxels),
                 entity,
                 ..
             }),
             Some(neighbors),
+            Some(chunk_voxels),
         ) = (
             chunk_world.chunks.get(&chunk_pos),
             chunk_world.neighbors(chunk_pos),
+            chunk_world.regions.chunk(chunk_pos),
         ) {
             let mut cmds = commands.entity(*entity);
             cmds.remove::<DirtyChunk>();
@@ -273,7 +282,7 @@ pub enum NeededChunkState {
 
 pub(crate) struct LoadedChunk {
     pub entity: Entity,
-    pub chunk: Option<Chunk>,
+    // pub chunk: Option<Chunk>,
     pub state: ChunkState,
     pub needed_state: NeededChunkState,
     pub pos: IVec3,
@@ -285,6 +294,7 @@ pub struct FixedChunkWorld {
     name: String,
     seed: u32,
     pub(crate) chunks: HashMap<IVec3, LoadedChunk>,
+    pub(crate) regions: RegionHandler,
 }
 
 impl FixedChunkWorld {
@@ -293,6 +303,7 @@ impl FixedChunkWorld {
             name,
             seed,
             chunks: default(),
+            regions: default(),
         }
     }
 
@@ -318,7 +329,7 @@ impl FixedChunkWorld {
                         RigidBody::Fixed,
                     ))
                     .id(),
-                chunk: None,
+                //chunk: None,
                 state: ChunkState::Empty,
                 needed_state,
                 pos: chunk,
@@ -412,15 +423,16 @@ impl FixedChunkWorld {
 
         let mut output = NeighborChunkSlices::default();
 
-        for (direction, chunk) in slice_dirs {
-            if let Some(LoadedChunk {
-                chunk: Some(chunk), ..
-            }) = chunk
-            {
-                *output.get_in_direction_mut(direction.normal()) = chunk
-                    .edge_slice_bits
-                    .get_in_direction(direction.normal().negate())
-                    .clone();
+        for (direction, c) in slice_dirs {
+            if let Some(LoadedChunk { pos, .. }) = c {
+                if let Some(chunk) = self.regions.chunk(*pos) {
+                    *output.get_in_direction_mut(direction.normal()) = chunk
+                        .edge_slice_bits
+                        .get_in_direction(direction.normal().negate())
+                        .clone();
+                } else {
+                    return None;
+                }
             } else {
                 return None;
             };
@@ -457,7 +469,7 @@ impl FixedChunkWorld {
                             match read_chunk_from_file(&name, pos) {
                                 Some(existing_chunk) => {
                                     debug!("loaded chunk at {pos}");
-                                    Chunk::from_container(existing_chunk)
+                                    existing_chunk
                                 }
                                 None => {
                                     let new_noise =
@@ -469,35 +481,34 @@ impl FixedChunkWorld {
                     ));
                 }
                 NeededStateChange::Render => {
-                    let (Some(neighbors), Some(chunk)) =
-                        (self.neighbors(pos), self.chunks.get_mut(&pos))
-                    else {
+                    let (Some(neighbors), Some(chunk), Some(voxels)) = (
+                        self.neighbors(pos),
+                        self.chunks.get_mut(&pos),
+                        self.regions.chunk(pos),
+                    ) else {
                         continue 'outer;
                     };
 
                     chunk.state = ChunkState::Rendering;
-                    if let Some(cloned_chunk) = chunk.chunk.clone() {
-                        commands.entity(entity).insert(RenderTask(
-                            pos,
-                            async_pool.spawn(async move {
-                                crate::voxel::generate_mesh(&cloned_chunk, neighbors)
-                            }),
-                        ));
-                    }
+                    let cloned_chunk = voxels.clone();
+                    commands.entity(entity).insert(RenderTask(
+                        pos,
+                        async_pool.spawn(async move {
+                            crate::voxel::generate_mesh(&cloned_chunk, neighbors)
+                        }),
+                    ));
                 }
                 NeededStateChange::Delete => {
-                    if let Some(LoadedChunk {
-                        chunk: Some(chunk), ..
-                    }) = self.chunks.remove(&pos)
-                    {
+                    if let Some(chunk) = self.regions.chunk(pos) {
                         let name = self.name.to_string();
+                        let cloned_chunk = chunk.clone();
                         async_pool
-                            .spawn(async move { write_chunk_to_file(&name, pos, &chunk.voxels) })
+                            .spawn(async move { write_chunk_to_file(&name, pos, &cloned_chunk) })
                             .detach();
-
-                        commands.entity(entity).despawn();
-                        delete_count += 1;
                     }
+                    self.chunks.remove(&pos);
+                    commands.entity(entity).despawn();
+                    delete_count += 1;
                 }
             }
         }
@@ -530,7 +541,7 @@ impl FixedChunkWorld {
                 continue;
             };
 
-            wrapper.chunk = Some(chunk);
+            *self.regions.chunk_mut(pos) = Some(chunk);
             wrapper.state = ChunkState::Generated;
             commands.entity(entity).remove::<GenerateTask>();
         }
