@@ -517,7 +517,11 @@ impl FixedChunkWorld {
         let generated_chunks = generate_query
             .iter_mut()
             .filter_map(|(entity, mut task)| {
-                block_on(poll_once(&mut task.1)).map(|chunk| (task.0, entity, chunk))
+                if commands.get_entity(entity).is_some() {
+                    block_on(poll_once(&mut task.1)).map(|chunk| (task.0, entity, chunk))
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
 

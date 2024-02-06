@@ -56,8 +56,7 @@ pub fn read_chunk_from_file(world_name: &str, chunk_pos: IVec3) -> Option<VoxelC
 
     match chunk_file_path.exists() {
         true => {
-            let file_reader = BufReader::new(File::open(&chunk_file_path).ok()?);
-            let gzip_decoder = GzDecoder::new(file_reader);
+            let gzip_decoder = GzDecoder::new(File::open(&chunk_file_path).ok()?);
             bincode::serde::decode_from_reader(BufReader::new(gzip_decoder), SERIAL_CONFIG).ok()
         }
         false => None,

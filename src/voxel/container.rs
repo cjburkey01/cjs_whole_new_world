@@ -4,7 +4,7 @@ use serde_with::serde_as;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 #[serde_as]
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct VoxelContainerInner(
     #[serde_as(as = "Box<[_; CHUNK_CUBE as usize]>")] pub Box<[Voxel; CHUNK_CUBE as usize]>,
 );
@@ -49,7 +49,7 @@ impl DerefMut for VoxelContainerInner {
     }
 }
 
-#[derive(Default, Clone, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct VoxelContainer(pub VoxelContainerInner);
 
 impl VoxelContainer {
