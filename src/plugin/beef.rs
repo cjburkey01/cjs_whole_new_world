@@ -19,7 +19,7 @@ use bevy::{
 };
 use bevy_rapier3d::{dynamics::RigidBody, prelude::Collider};
 use futures_lite::future::poll_once;
-use itertools::{iproduct, Itertools};
+use itertools::iproduct;
 
 pub const DIAG_GENERATE_REQUIRED: DiagnosticId =
     DiagnosticId::from_u128(20645138512437775160238241943797);
@@ -71,7 +71,7 @@ impl Plugin for BeefPlugin {
             Update,
             (
                 check_dirty_edges,
-                update_dirty_chunks,
+                update_dirty_chunks_system,
                 update_loader_states,
                 update_diagnostics,
                 start_loading,
@@ -88,11 +88,16 @@ impl Plugin for BeefPlugin {
     }
 }
 
+// TODO: ALLOW MARKING INDIVIDUAL SIDES AS DIRTY
+/// System to check for any chunks that need their edges updated.
 fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkWorld>) {
     let mut dirty_edge_chunks = vec![];
 
+    // Loop through all currently loaded chunks
     for (pos, loaded_chunk) in chunk_world.chunks.iter_mut() {
+        // Make sure this chunk is already loaded
         if let Some(chunk) = &mut loaded_chunk.chunk {
+            // Update edges
             if chunk.edges_dirty {
                 chunk.update_edge_slice_bits();
                 dirty_edge_chunks.push(*pos);
@@ -100,20 +105,26 @@ fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkW
         }
     }
 
+    // When we update a chunk that requires updating one of its edge slices,
+    // we mark the the neighbors as dirty to ensure no gaps
     for dirty_edge_chunk in dirty_edge_chunks {
+        // Loop through each direction
         for neighbor_dir in SLICE_DIRECTIONS {
+            // Get the entity for the chunk in this direction
             let neighbor_pos = dirty_edge_chunk + neighbor_dir.normal().to_ivec3();
             if let Some(LoadedChunk {
                 entity: neighbor_entity,
                 ..
             }) = chunk_world.chunks.get(&neighbor_pos)
             {
+                // Mark it as dirty
                 commands.entity(*neighbor_entity).insert(DirtyChunk);
             }
         }
     }
 }
 
+/// Ugly but does stuff
 fn update_diagnostics(
     mut diagnostics: Diagnostics,
     chunk_world: Res<FixedChunkWorld>,
@@ -150,40 +161,60 @@ fn update_diagnostics(
     diagnostics.add_measurement(DIAG_NON_CULLED_CHUNKS, || non_culled_count as f64);
 }
 
-fn update_dirty_chunks(
+/// System to perform immediate updates on chunks currently marked as dirty.
+/// It is important not to mark many chunks as dirty (until I add stuff to
+/// handle that), their updates are performed synchronously in this system.
+fn update_dirty_chunks_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     material: Res<ChunkMaterialRes>,
     chunk_world: Res<FixedChunkWorld>,
-    dirty_chunks: Query<&ChunkEntity, With<DirtyChunk>>,
+    dirty_chunks: Query<(Entity, &ChunkEntity), With<DirtyChunk>>,
 ) {
-    // write_chunk(&self.name, wrapper.pos, &chunk);
-
-    for chunk_pos in dirty_chunks.iter().map(|ChunkEntity(pos)| *pos) {
+    for (entity, chunk_pos) in dirty_chunks
+        .iter()
+        .map(|(entity, ChunkEntity(pos))| (entity, *pos))
+    {
+        // Check if this dirty chunk is already generated. Otherwise, not sure how we got here.
+        // Also retrieve this chunk's neighbors to render this one
         if let (
             Some(LoadedChunk {
                 state: ChunkState::Rendered,
                 chunk: Some(chunk_voxels),
-                entity,
                 ..
             }),
             Some(neighbors),
-            //Some(chunk_voxels),
         ) = (
             chunk_world.chunks.get(&chunk_pos),
             chunk_world.neighbors(chunk_pos),
-            //chunk_world.regions.chunk(chunk_pos),
         ) {
-            let mut cmds = commands.entity(*entity);
+            // Get this entity
+            let mut cmds = commands.entity(entity);
+            // Remove the dirty marker
             cmds.remove::<DirtyChunk>();
+            // Remove the marker for chunks that do *not* need to be saved
             cmds.remove::<IoCleanChunk>();
+            // Generate the mesh
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
+                // Insert the mesh bundle; this is the same function that is
+                // called when a chunk has finished rendering asynchronously,
+                // in the case that this chunk previously did not have a mesh;
+                // in that case, this entity would not have a material handle,
+                // so we just insert all of this just in case.
                 make_mesh_bundle(&mut cmds, chunk_pos, &mut meshes, &material, collider, mesh);
+            } else {
+                // If the mesh generation returned None, it means the mesh is
+                // empty, so we can go ahead and remove any mesh handle that
+                // may or may not exist on this entity to ensure removing the
+                // last voxel in a chunk doesn't just leave the voxel ghost.
+                cmds.remove::<Handle<Mesh>>();
             }
         }
     }
 }
 
+/// System to check for chunk loader pos/radius changes and update
+/// which chunks are required to be in which states.
 fn update_loader_states(
     mut commands: Commands,
     mut chunks: ResMut<FixedChunkWorld>,
@@ -191,18 +222,22 @@ fn update_loader_states(
     loaders: Query<(&ChunkPos, &ChunkLoader)>,
     changed_loaders: Query<(&ChunkPos, &ChunkLoader), Changed<ChunkPos>>,
 ) {
+    // If the settings have been changed, check for state changes
     if game_settings.is_changed() {
         // Only one chunk loader for now
         for (loader_pos, ChunkLoader { radius }) in loaders.iter() {
             chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
         }
     } else {
+        // If the settings haven't been changed, check for changed loader
+        // positions.
         for (loader_pos, ChunkLoader { radius }) in changed_loaders.iter() {
             chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
         }
     }
 }
 
+/// System to queue loading for necessary chunks.
 fn start_loading(
     mut diagnostics: Diagnostics,
     mut commands: Commands,
@@ -211,11 +246,14 @@ fn start_loading(
     loaders: Query<(&ChunkPos, &ChunkLoader)>,
 ) {
     if let Ok((loader_pos, ChunkLoader { radius })) = loaders.get_single() {
+        // Determine which chunks have states that need to change
         let state_changes = chunks.required_state_changes(loader_pos.pos, *radius as usize);
+        // Start executing the state changes
         chunks.execute_state_changes(&mut diagnostics, &mut commands, &noise, state_changes);
     }
 }
 
+/// System to check for any finished async generation/render tasks.
 fn check_queue(
     mut commands: Commands,
     material: Res<ChunkMaterialRes>,
@@ -278,22 +316,8 @@ pub(crate) struct LoadedChunk {
     pub chunk: Option<Chunk>,
     pub state: ChunkState,
     pub needed_state: NeededChunkState,
+    #[allow(unused)]
     pub pos: IVec3,
-    // pub edge_slice_bits: NeighborChunkSlices,
-    // pub edges_dirty: bool,
-}
-
-impl LoadedChunk {
-    /*pub fn update_edge_slice_bits(&mut self) {
-        for slice_dir in SLICE_DIRECTIONS {
-            let new_bits = self.get_solid_bits_slice(slice_dir, 0).unwrap();
-            let bits_at = self
-                .edge_slice_bits
-                .get_in_direction_mut(slice_dir.normal().negate());
-            *bits_at = new_bits;
-        }
-        self.edges_dirty = false;
-    }*/
 }
 
 #[allow(unused)]
@@ -302,7 +326,6 @@ pub struct FixedChunkWorld {
     name: String,
     seed: u32,
     pub(crate) chunks: HashMap<IVec3, LoadedChunk>,
-    // pub(crate) regions: RegionHandler,
 }
 
 impl FixedChunkWorld {
@@ -311,7 +334,6 @@ impl FixedChunkWorld {
             name,
             seed,
             chunks: default(),
-            // regions: default(),
         }
     }
 
@@ -319,6 +341,8 @@ impl FixedChunkWorld {
         &self.name
     }
 
+    /// Set the provided chunk's needed state to the one provided, spawning
+    /// the chunk entity is one does not already exist.
     pub fn set_needed<'w: 'a, 's: 'a, 'a>(
         &mut self,
         commands: &mut Commands,
@@ -341,11 +365,13 @@ impl FixedChunkWorld {
                 state: ChunkState::Empty,
                 needed_state,
                 pos: chunk,
-                // edge_slice_bits: default(),
-                // edges_dirty: false,
             });
     }
 
+    /// Update needed chunk states in a given radius around the chunk loader
+    /// at the provided position. A radius of 1 will only generate chunks
+    /// beyond the chunk containing the chunk loader, leading to a
+    /// "one chunk" experience being rendered.
     pub fn update_needed_chunk_states<'w: 'a, 's: 'a, 'a>(
         &mut self,
         commands: &mut Commands,
@@ -366,6 +392,8 @@ impl FixedChunkWorld {
         }
     }
 
+    /// Determine which states need to change based on the current state and
+    /// the needed state.
     fn required_state_changes(
         &self,
         loader_chunk: IVec3,
@@ -414,6 +442,9 @@ impl FixedChunkWorld {
             }
         }
 
+        // Sort by distance to the chunk loader to coax closer chunks into
+        // loading first. The order isn't stable, but this means closer chunk
+        // tasks should be spawned first.
         changes.sort_unstable_by(|(pos1, ..), (pos2, ..)| {
             (*pos1 - loader_chunk)
                 .abs()
@@ -424,7 +455,10 @@ impl FixedChunkWorld {
         changes
     }
 
+    /// Get the solid face bitmap for each chunk neighboring the provided one
+    /// to determine whether sides of edge voxels should be culled.
     fn neighbors(&self, chunk: IVec3) -> Option<NeighborChunkSlices> {
+        // Get the chunks in each direction
         let slice_dirs = SLICE_DIRECTIONS.map(|direction| {
             let norm = direction.normal();
             let chunk_pos = chunk + norm.to_ivec3();
@@ -434,19 +468,18 @@ impl FixedChunkWorld {
         let mut output = NeighborChunkSlices::default();
 
         for (direction, loaded_chunk) in slice_dirs {
+            // Make sure this chunk is already generated.
             if let Some(LoadedChunk {
                 chunk: Some(chunk), ..
             }) = loaded_chunk
             {
-                //if let Some(chunk) = self.regions.chunk(*pos) {
                 *output.get_in_direction_mut(direction.normal()) = chunk
                     .edge_slice_bits
                     .get_in_direction(direction.normal().negate())
                     .clone();
-                // } else {
-                //     return None;
-                // }
             } else {
+                // We need to return none now, not all neighboring chunks have
+                // been generated.
                 return None;
             };
         }
@@ -454,6 +487,7 @@ impl FixedChunkWorld {
         Some(output)
     }
 
+    /// Spawn the tasks to perform the state changes required.
     fn execute_state_changes(
         &mut self,
         diagnostics: &mut Diagnostics,
@@ -473,17 +507,23 @@ impl FixedChunkWorld {
                         continue 'outer;
                     };
 
+                    // Update the current state
                     chunk.state = ChunkState::Generating;
+                    // Make clones to send to task
                     let noise = noise.clone();
                     let name = self.name.clone();
+
+                    // Insert the task into the chunk entity
                     commands.entity(entity).insert(GenerateTask(
                         pos,
                         async_pool.spawn(async move {
                             match read_chunk_from_file(&name, pos) {
+                                // Load from disk
                                 Some(existing_chunk) => {
                                     debug!("loaded chunk at {pos}");
                                     Chunk::from_container(existing_chunk)
                                 }
+                                // Generate with noise
                                 None => {
                                     let new_noise =
                                         noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
@@ -494,36 +534,36 @@ impl FixedChunkWorld {
                     ));
                 }
                 NeededStateChange::Render => {
-                    let (
+                    if let (
                         Some(neighbors),
                         Some(LoadedChunk {
                             state,
                             chunk: Some(voxels),
                             ..
-                        }), /*, Some(voxels)*/
-                    ) = (
-                        self.neighbors(pos),
-                        self.chunks.get_mut(&pos),
-                        //self.regions.chunk(pos),
-                    )
-                    else {
-                        continue 'outer;
-                    };
-
-                    *state = ChunkState::Rendering;
-                    let cloned_chunk = voxels.clone();
-                    commands.entity(entity).insert(RenderTask(
-                        pos,
-                        async_pool.spawn(async move {
-                            crate::voxel::generate_mesh(&cloned_chunk, neighbors)
                         }),
-                    ));
+                    ) = (self.neighbors(pos), self.chunks.get_mut(&pos))
+                    {
+                        // Update the state
+                        *state = ChunkState::Rendering;
+                        // Clone the chunk to send to the task
+                        let cloned_chunk = voxels.clone();
+                        // Insert the task into the chunk entity
+                        commands.entity(entity).insert(RenderTask(
+                            pos,
+                            async_pool.spawn(async move {
+                                crate::voxel::generate_mesh(&cloned_chunk, neighbors)
+                            }),
+                        ));
+                    }
                 }
                 NeededStateChange::Delete => {
+                    // Remove the chunk from the chunk hashmap, stealing the
+                    // chunk data to save if it existed
                     if let Some(LoadedChunk {
                         chunk: Some(chunk), ..
                     }) = self.chunks.remove(&pos)
                     {
+                        // Try to save this chunk before it's deleted
                         let world_name = self.name.to_string();
                         let cloned_chunk = chunk.clone();
                         async_pool
@@ -532,6 +572,7 @@ impl FixedChunkWorld {
                             })
                             .detach();
                     };
+                    // Despawn the entity
                     commands.entity(entity).despawn();
                     delete_count += 1;
                 }
@@ -542,6 +583,7 @@ impl FixedChunkWorld {
     }
 
     //noinspection DuplicatedCode
+    /// Search for finished generation and render tasks.
     fn collect_finished_tasks(
         &mut self,
         commands: &mut Commands,
@@ -550,6 +592,7 @@ impl FixedChunkWorld {
         generate_query: &mut Query<(Entity, &mut GenerateTask), Without<RenderTask>>,
         render_query: &mut Query<(Entity, &mut RenderTask), Without<GenerateTask>>,
     ) {
+        // Collect the chunks that have finished generating
         let generated_chunks = generate_query
             .iter_mut()
             .filter_map(|(entity, mut task)| {
@@ -562,15 +605,20 @@ impl FixedChunkWorld {
             .collect::<Vec<_>>();
 
         for (pos, entity, chunk) in generated_chunks {
+            // Make sure the chunk is still loaded
             let Some(wrapper) = self.chunks.get_mut(&pos) else {
                 continue;
             };
 
+            // Update the chunk and state
             wrapper.chunk = Some(chunk);
             wrapper.state = ChunkState::Generated;
+
+            // Remove the task from this entity
             commands.entity(entity).remove::<GenerateTask>();
         }
 
+        // Collect finished rendering tasks
         let rendered_chunks = render_query
             .iter_mut()
             .filter_map(|(entity, mut task)| {
@@ -579,14 +627,19 @@ impl FixedChunkWorld {
             .collect::<Vec<_>>();
 
         for (pos, entity, opt) in rendered_chunks {
+            // Make sure this chunk is still loaded
             let Some(wrapper) = self.chunks.get_mut(&pos) else {
                 continue;
             };
 
+            // Update the state
             wrapper.state = ChunkState::Rendered;
 
             let mut e = commands.entity(entity);
+            // Remove the render task
             e.remove::<RenderTask>();
+
+            // Insert the mesh information if it is not empty
             if let Some((collider, mesh)) = opt {
                 make_mesh_bundle(&mut e, pos, meshes, material, collider, mesh);
             }
@@ -594,6 +647,8 @@ impl FixedChunkWorld {
     }
 }
 
+/// Insert the necessary components for rendering into the provided chunk
+/// entity.
 fn make_mesh_bundle(
     commands: &mut EntityCommands,
     pos: IVec3,
@@ -613,6 +668,8 @@ fn make_mesh_bundle(
     ));
 }
 
+/// System to update the main character controller's loader radius whenever the
+/// options have been updated. Hopefully this system doesn't last too long.
 fn update_loader_radius(
     settings: Res<GameSettings>,
     mut loader: Query<&mut ChunkLoader, With<CharControl2>>,

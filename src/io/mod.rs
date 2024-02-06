@@ -1,4 +1,4 @@
-use crate::voxel::{Chunk, VoxelContainer, VoxelRegion};
+use crate::voxel::{VoxelContainer, VoxelRegion};
 use bevy::prelude::IVec3;
 use bincode::config::Configuration;
 use directories::ProjectDirs;
@@ -13,6 +13,7 @@ use std::{
 
 pub const SAVES_DIR_NAME: &str = "saves";
 pub const CHUNKS_DIR_NAME: &str = "chunks";
+#[allow(unused)]
 pub const REGIONS_DIR_NAME: &str = "regions";
 
 lazy_static! {
@@ -39,10 +40,12 @@ pub fn save_chunk_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
     save_chunks_dir(world_name).join(format!("{x}_{y}_{z}.chunk.gz"))
 }
 
+#[allow(unused)]
 pub fn save_regions_dir(world_name: &str) -> PathBuf {
     saves_dir(world_name).join(REGIONS_DIR_NAME)
 }
 
+#[allow(unused)]
 pub fn save_region_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
     save_chunks_dir(world_name).join(format!("{x}_{y}_{z}.chunk.gz"))
 }
@@ -57,6 +60,7 @@ pub fn read_chunk_from_file(world_name: &str, chunk_pos: IVec3) -> Option<VoxelC
     read_from_file(&save_chunk_file(world_name, chunk_pos))
 }
 
+#[allow(unused)]
 pub fn write_region_to_file(world_name: &str, chunk_pos: IVec3, region: &VoxelRegion) {
     std::fs::create_dir_all(save_regions_dir(world_name)).unwrap();
     let region_file_path = save_region_file(world_name, chunk_pos);

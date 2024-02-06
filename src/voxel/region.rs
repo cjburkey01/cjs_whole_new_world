@@ -1,4 +1,4 @@
-use super::{Chunk, VoxelContainer};
+use super::VoxelContainer;
 use bevy::{prelude::*, utils::HashMap};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -22,9 +22,7 @@ impl RegionHandler {
     }
 
     pub fn region_mut(&mut self, region_pos: IVec3) -> &mut VoxelRegion {
-        self.regions
-            .entry(region_pos)
-            .or_insert_with(|| VoxelRegion::default())
+        self.regions.entry(region_pos).or_default()
     }
 
     pub fn chunk(&self, chunk_pos: IVec3) -> Option<&VoxelContainer> {
