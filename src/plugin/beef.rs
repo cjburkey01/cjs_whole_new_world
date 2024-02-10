@@ -290,9 +290,6 @@ pub struct ChunkEntity(pub IVec3);
 pub struct DirtyChunk;
 
 #[derive(Component)]
-pub struct NewChunkMesh(pub Handle<Mesh>, pub Collider);
-
-#[derive(Component)]
 struct GenerateTask(IVec3, Task<Chunk>);
 
 #[derive(Component)]

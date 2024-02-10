@@ -1374,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "cjs_whole_new_world"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bevy",
  "bevy_asset_loader",

@@ -26,11 +26,11 @@ impl Plugin for RegionSaverPlugin {
 pub struct RegionHandlerRes(pub Arc<RwLock<RegionHandler>>);
 
 fn save_regions_on_exit_system(
-    mut exit_reader: EventReader<AppExit>,
+    exit_reader: EventReader<AppExit>,
     region_handler: Option<Res<RegionHandlerRes>>,
     chunk_world: Option<Res<FixedChunkWorld>>,
 ) {
-    if exit_reader.len() > 0 {
+    if !exit_reader.is_empty() {
         debug!("exiting game, checking if we need to save regions");
         if let (Some(region_handler), Some(chunk_world)) = (region_handler, chunk_world) {
             force_sync_regions_save(&region_handler, &chunk_world);

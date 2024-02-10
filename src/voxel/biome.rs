@@ -3,14 +3,6 @@ use itertools::iproduct;
 use num_enum::{FromPrimitive, IntoPrimitive};
 use std::fmt::{Display, Formatter};
 
-pub trait Denormalize: Sequence + FromPrimitive<Primitive = u8> {
-    fn denormalize(normalized: f64) -> Self {
-        let half_count_f = 0.5 * cardinality::<Self>() as f64;
-        let humidity = half_count_f * (normalized.min(1.0).max(-1.0) + 1.0);
-        <Self as FromPrimitive>::from_primitive(humidity.trunc() as u8)
-    }
-}
-
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Sequence, IntoPrimitive, FromPrimitive)]
 #[repr(u8)]
 pub enum BiomeTemperature {
@@ -22,8 +14,6 @@ pub enum BiomeTemperature {
     LowerMontane,
     PreMontane,
 }
-
-impl Denormalize for BiomeTemperature {}
 
 impl Display for BiomeTemperature {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -55,8 +45,6 @@ pub enum BiomeHumidity {
     PerHumid,
     SuperHumid,
 }
-
-impl Denormalize for BiomeHumidity {}
 
 impl Display for BiomeHumidity {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
