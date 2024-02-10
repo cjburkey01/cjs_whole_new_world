@@ -74,6 +74,7 @@ fn main() {
             beef::BeefPlugin,
             game_gui::GameGuiPlugin,
             saver::SaverPlugin,
+            region_saver::RegionSaverPlugin,
         ))
         .add_state::<AssetState>()
         .add_loading_state(

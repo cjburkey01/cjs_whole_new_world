@@ -10,6 +10,7 @@ use crate::{
         controller_2::{CharControl2, PlayerStartFrozen},
         game_gui::text_input::TextValue,
         game_settings::GameSettings,
+        region_saver::RegionHandlerRes,
     },
     voxel::{world_noise::WorldNoiseSettings, BiomeTable},
     FontAssets,
@@ -166,6 +167,7 @@ fn on_pressed_create_button_system(
 
     info!("Creating world \"{name}\" with seed {seed}");
 
+    commands.insert_resource(RegionHandlerRes::default());
     commands.insert_resource(WorldNoiseSettings::new(seed, BiomeTable::new()));
     commands.insert_resource(FixedChunkWorld::new(name, seed));
     if let Ok(entity) = ply_entity.get_single() {

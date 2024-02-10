@@ -5,5 +5,6 @@ pub mod control;
 pub mod controller_2;
 pub mod game_gui;
 pub mod game_settings;
+pub mod region_saver;
 pub mod saver;
 pub mod voxel_material;

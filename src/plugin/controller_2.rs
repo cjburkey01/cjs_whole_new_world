@@ -1,6 +1,5 @@
 use super::{
     beef::{ChunkEntity, ChunkState, FixedChunkWorld, LoadedChunk},
-    chunk_pos::ChunkPos,
     control::{
         input::{create_input_manager_bundle, PlyAction},
         pause::PauseState,
@@ -9,7 +8,7 @@ use super::{
 };
 use crate::{
     plugin::beef::DirtyChunk,
-    voxel::{InChunkPos, Voxel, CHUNK_WIDTH},
+    voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_WIDTH},
 };
 use bevy::{prelude::*, time::common_conditions::on_timer};
 use bevy_rapier3d::prelude::*;
@@ -55,7 +54,7 @@ fn modify_block_system(
                     entity,
                     chunk: Some(chunk),
                     ..
-                }) = chunks.chunks.get_mut(&look_at.chunk_pos)
+                }) = chunks.chunks.get_mut(&ChunkPos(look_at.chunk_pos))
                 {
                     chunk.set(look_at.voxel_pos_in_chunk, Voxel::Air);
                     commands.entity(*entity).insert(DirtyChunk);
@@ -95,7 +94,7 @@ fn look_at_voxels(
                 }),
                 //Some(chunk),
             ) = (
-                chunks.chunks.get(chunk_pos),
+                chunks.chunks.get(&ChunkPos(*chunk_pos)),
                 //chunks.regions.chunk(*chunk_pos),
             ) {
                 let global_voxel_pos = (intersection.point - intersection.normal.normalize() * 0.3)
@@ -138,37 +137,54 @@ fn update_character_controller_position(
             &Transform,
             &mut KinematicCharacterController,
             Option<&KinematicCharacterControllerOutput>,
-            &CharControl2,
-            &mut Velocity,
+            &mut CharControl2,
+            &Velocity,
             &ActionState<PlyAction>,
         ),
         Without<PlayerStartFrozen>,
     >,
 ) {
-    for (transform, mut controller, controller_output, ply_cam, mut vel, ctrl) in query.iter_mut() {
-        // Move camera
+    for (transform, mut controller, controller_output, mut ply_cam, vel, ctrl) in query.iter_mut() {
+        if ctrl.just_pressed(PlyAction::NoClip) {
+            ply_cam.no_clip = !ply_cam.no_clip;
+        }
+
         let key_motion = ctrl.axis_pair(PlyAction::LateralMove).unwrap();
         let y_velocity = vel.linvel.y;
-        vel.linvel = (transform.rotation * Vec3::new(key_motion.x(), 0.0, -key_motion.y()))
+        let mut new_vel = (transform.rotation * Vec3::new(key_motion.x(), 0.0, -key_motion.y()))
             .normalize_or_zero();
-        vel.linvel *= if ctrl.pressed(PlyAction::Fast) {
+        let speed = if ctrl.pressed(PlyAction::Fast) {
             ply_cam.run_speed
         } else {
             ply_cam.walk_speed
+        } * if ply_cam.no_clip {
+            ply_cam.no_clip_speed_ratio
+        } else {
+            1.0
         };
+        new_vel *= speed;
 
-        vel.linvel.y = y_velocity.min(ply_cam.jump_velocity);
-        if let Some(controller_output) = controller_output {
-            if controller_output.grounded {
-                if ctrl.just_pressed(PlyAction::Jump) {
-                    vel.linvel.y = ply_cam.jump_velocity;
-                } else {
-                    vel.linvel.y = 0.0;
+        if ply_cam.no_clip {
+            if ctrl.pressed(PlyAction::Jump) {
+                new_vel.y += speed;
+            }
+            if ctrl.pressed(PlyAction::Down) {
+                new_vel.y -= speed;
+            }
+        } else {
+            new_vel.y = y_velocity.min(ply_cam.jump_velocity);
+            if let Some(controller_output) = controller_output {
+                if controller_output.grounded {
+                    if ctrl.just_pressed(PlyAction::Jump) {
+                        new_vel.y = ply_cam.jump_velocity;
+                    } else {
+                        new_vel.y = 0.0;
+                    }
                 }
             }
+            new_vel += phys.gravity * time.delta_seconds();
         }
-        vel.linvel += phys.gravity * time.delta_seconds();
-        controller.translation = Some(vel.linvel * time.delta_seconds());
+        controller.translation = Some(new_vel * time.delta_seconds());
     }
 }
 
@@ -222,6 +238,8 @@ pub struct CharControl2 {
     pub run_speed: f32,
     pub jump_velocity: f32,
     pub rot_speed: f32,
+    pub no_clip: bool,
+    pub no_clip_speed_ratio: f32,
 }
 
 impl Default for CharControl2 {
@@ -231,6 +249,8 @@ impl Default for CharControl2 {
             run_speed: 10.0,
             jump_velocity: 7.0,
             rot_speed: 0.2,
+            no_clip: false,
+            no_clip_speed_ratio: 5.0,
         }
     }
 }

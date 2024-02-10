@@ -1,4 +1,4 @@
-use crate::voxel::{VoxelContainer, VoxelRegion};
+use crate::voxel::{RegionHandler, RegionPos, VoxelRegion};
 use bevy::prelude::IVec3;
 use bincode::config::Configuration;
 use directories::ProjectDirs;
@@ -12,8 +12,6 @@ use std::{
 };
 
 pub const SAVES_DIR_NAME: &str = "saves";
-pub const CHUNKS_DIR_NAME: &str = "chunks";
-#[allow(unused)]
 pub const REGIONS_DIR_NAME: &str = "regions";
 
 lazy_static! {
@@ -32,39 +30,28 @@ pub fn saves_dir(world_name: &str) -> PathBuf {
     SAVES_DIR.join(world_name)
 }
 
-pub fn save_chunks_dir(world_name: &str) -> PathBuf {
-    saves_dir(world_name).join(CHUNKS_DIR_NAME)
-}
-
-pub fn save_chunk_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
-    save_chunks_dir(world_name).join(format!("{x}_{y}_{z}.chunk.gz"))
-}
-
-#[allow(unused)]
 pub fn save_regions_dir(world_name: &str) -> PathBuf {
     saves_dir(world_name).join(REGIONS_DIR_NAME)
 }
 
-#[allow(unused)]
-pub fn save_region_file(world_name: &str, IVec3 { x, y, z }: IVec3) -> PathBuf {
-    save_chunks_dir(world_name).join(format!("{x}_{y}_{z}.chunk.gz"))
+pub fn save_region_file(world_name: &str, RegionPos(IVec3 { x, y, z }): RegionPos) -> PathBuf {
+    save_regions_dir(world_name).join(format!("{x}_{y}_{z}.region.gz"))
 }
 
-pub fn write_chunk_to_file(world_name: &str, chunk_pos: IVec3, chunk: &VoxelContainer) {
-    std::fs::create_dir_all(save_chunks_dir(world_name)).unwrap();
-    let chunk_file_path = save_chunk_file(world_name, chunk_pos);
-    write_to_file(&chunk_file_path, chunk);
-}
-
-pub fn read_chunk_from_file(world_name: &str, chunk_pos: IVec3) -> Option<VoxelContainer> {
-    read_from_file(&save_chunk_file(world_name, chunk_pos))
-}
-
-#[allow(unused)]
-pub fn write_region_to_file(world_name: &str, chunk_pos: IVec3, region: &VoxelRegion) {
+pub fn write_region_to_file(world_name: &str, region_pos: RegionPos, region: &VoxelRegion) {
     std::fs::create_dir_all(save_regions_dir(world_name)).unwrap();
-    let region_file_path = save_region_file(world_name, chunk_pos);
+    let region_file_path = save_region_file(world_name, region_pos);
     write_to_file(&region_file_path, region);
+}
+
+pub fn write_regions_to_file(world_name: &str, region_handler: &RegionHandler) {
+    region_handler
+        .regions()
+        .for_each(|(pos, region)| write_region_to_file(world_name, *pos, region));
+}
+
+pub fn read_region_from_file(world_name: &str, region_pos: RegionPos) -> Option<VoxelRegion> {
+    read_from_file(&save_region_file(world_name, region_pos))
 }
 
 fn write_to_file<Data: serde::Serialize>(path: &Path, input_data: Data) {

@@ -1,12 +1,12 @@
 use super::{
-    chunk_loader::ChunkLoader, chunk_pos::ChunkPos, controller_2::CharControl2,
-    game_settings::GameSettings, voxel_material::ChunkMaterialRes,
+    chunk_loader::ChunkLoader, controller_2::CharControl2, game_settings::GameSettings,
+    voxel_material::ChunkMaterialRes,
 };
 use crate::{
-    io::{read_chunk_from_file, write_chunk_to_file},
-    plugin::saver::IoCleanChunk,
+    plugin::{region_saver::RegionHandlerRes, saver::IoCleanChunk},
     voxel::{
-        world_noise::WorldNoiseSettings, Chunk, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
+        world_noise::WorldNoiseSettings, Chunk, ChunkPos, InRegionChunkPos, NeighborChunkSlices,
+        CHUNK_WIDTH, SLICE_DIRECTIONS,
     },
 };
 use bevy::{
@@ -20,6 +20,7 @@ use bevy::{
 use bevy_rapier3d::{dynamics::RigidBody, prelude::Collider};
 use futures_lite::future::poll_once;
 use itertools::iproduct;
+use std::sync::Arc;
 
 pub const DIAG_GENERATE_REQUIRED: DiagnosticId =
     DiagnosticId::from_u128(20645138512437775160238241943797);
@@ -111,11 +112,11 @@ fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkW
         // Loop through each direction
         for neighbor_dir in SLICE_DIRECTIONS {
             // Get the entity for the chunk in this direction
-            let neighbor_pos = dirty_edge_chunk + neighbor_dir.normal().to_ivec3();
+            let neighbor_pos = dirty_edge_chunk.0 + neighbor_dir.normal().to_ivec3();
             if let Some(LoadedChunk {
                 entity: neighbor_entity,
                 ..
-            }) = chunk_world.chunks.get(&neighbor_pos)
+            }) = chunk_world.chunks.get(&ChunkPos(neighbor_pos))
             {
                 // Mark it as dirty
                 commands.entity(*neighbor_entity).insert(DirtyChunk);
@@ -185,7 +186,7 @@ fn update_dirty_chunks_system(
             }),
             Some(neighbors),
         ) = (
-            chunk_world.chunks.get(&chunk_pos),
+            chunk_world.chunks.get(&ChunkPos(chunk_pos)),
             chunk_world.neighbors(chunk_pos),
         ) {
             // Get this entity
@@ -226,13 +227,13 @@ fn update_loader_states(
     if game_settings.is_changed() {
         // Only one chunk loader for now
         for (loader_pos, ChunkLoader { radius }) in loaders.iter() {
-            chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
+            chunks.update_needed_chunk_states(&mut commands, *loader_pos, *radius as usize);
         }
     } else {
         // If the settings haven't been changed, check for changed loader
         // positions.
         for (loader_pos, ChunkLoader { radius }) in changed_loaders.iter() {
-            chunks.update_needed_chunk_states(&mut commands, loader_pos.pos, *radius as usize);
+            chunks.update_needed_chunk_states(&mut commands, *loader_pos, *radius as usize);
         }
     }
 }
@@ -242,14 +243,21 @@ fn start_loading(
     mut diagnostics: Diagnostics,
     mut commands: Commands,
     mut chunks: ResMut<FixedChunkWorld>,
+    region_handler: Res<RegionHandlerRes>,
     noise: Res<WorldNoiseSettings>,
     loaders: Query<(&ChunkPos, &ChunkLoader)>,
 ) {
     if let Ok((loader_pos, ChunkLoader { radius })) = loaders.get_single() {
         // Determine which chunks have states that need to change
-        let state_changes = chunks.required_state_changes(loader_pos.pos, *radius as usize);
+        let state_changes = chunks.required_state_changes(*loader_pos, *radius as usize);
         // Start executing the state changes
-        chunks.execute_state_changes(&mut diagnostics, &mut commands, &noise, state_changes);
+        chunks.execute_state_changes(
+            &mut diagnostics,
+            &mut commands,
+            &region_handler,
+            &noise,
+            state_changes,
+        );
     }
 }
 
@@ -325,7 +333,7 @@ pub(crate) struct LoadedChunk {
 pub struct FixedChunkWorld {
     name: String,
     seed: u32,
-    pub(crate) chunks: HashMap<IVec3, LoadedChunk>,
+    pub(crate) chunks: HashMap<ChunkPos, LoadedChunk>,
 }
 
 impl FixedChunkWorld {
@@ -346,7 +354,7 @@ impl FixedChunkWorld {
     pub fn set_needed<'w: 'a, 's: 'a, 'a>(
         &mut self,
         commands: &mut Commands,
-        chunk: IVec3,
+        chunk: ChunkPos,
         needed_state: NeededChunkState,
     ) {
         let _ = self
@@ -356,7 +364,7 @@ impl FixedChunkWorld {
             .or_insert_with(|| LoadedChunk {
                 entity: commands
                     .spawn((
-                        ChunkEntity(chunk),
+                        ChunkEntity(chunk.0),
                         Aabb::from_min_max(Vec3::ZERO, UVec3::splat(CHUNK_WIDTH).as_vec3()),
                         RigidBody::Fixed,
                     ))
@@ -364,7 +372,7 @@ impl FixedChunkWorld {
                 chunk: None,
                 state: ChunkState::Empty,
                 needed_state,
-                pos: chunk,
+                pos: chunk.0,
             });
     }
 
@@ -375,7 +383,7 @@ impl FixedChunkWorld {
     pub fn update_needed_chunk_states<'w: 'a, 's: 'a, 'a>(
         &mut self,
         commands: &mut Commands,
-        loader_chunk: IVec3,
+        loader_chunk: ChunkPos,
         radius: usize,
     ) {
         let r = radius as i32;
@@ -388,7 +396,7 @@ impl FixedChunkWorld {
                 true => NeededChunkState::Generated,
                 false => NeededChunkState::Rendered,
             };
-            self.set_needed(commands, loader_chunk + offset, needed_state);
+            self.set_needed(commands, ChunkPos(loader_chunk.0 + offset), needed_state);
         }
     }
 
@@ -396,15 +404,15 @@ impl FixedChunkWorld {
     /// the needed state.
     fn required_state_changes(
         &self,
-        loader_chunk: IVec3,
+        loader_chunk: ChunkPos,
         radius: usize,
-    ) -> Vec<(IVec3, Entity, NeededStateChange)> {
+    ) -> Vec<(ChunkPos, Entity, NeededStateChange)> {
         let mut changes = vec![];
         let radius_i = radius as i32;
 
         // Loop through existing chunks
         for (pos, chunk) in self.chunks.iter() {
-            let offset_pos = *pos - loader_chunk;
+            let offset_pos = pos.0 - loader_chunk.0;
             let entity = chunk.entity;
 
             // If it's within the radius of chunks that need loaded
@@ -446,10 +454,10 @@ impl FixedChunkWorld {
         // loading first. The order isn't stable, but this means closer chunk
         // tasks should be spawned first.
         changes.sort_unstable_by(|(pos1, ..), (pos2, ..)| {
-            (*pos1 - loader_chunk)
+            (pos1.0 - loader_chunk.0)
                 .abs()
                 .min_element()
-                .cmp(&(*pos2 - loader_chunk).abs().min_element())
+                .cmp(&(pos2.0 - loader_chunk.0).abs().min_element())
         });
 
         changes
@@ -462,7 +470,7 @@ impl FixedChunkWorld {
         let slice_dirs = SLICE_DIRECTIONS.map(|direction| {
             let norm = direction.normal();
             let chunk_pos = chunk + norm.to_ivec3();
-            (direction, self.chunks.get(&chunk_pos))
+            (direction, self.chunks.get(&ChunkPos(chunk_pos)))
         });
 
         let mut output = NeighborChunkSlices::default();
@@ -492,8 +500,9 @@ impl FixedChunkWorld {
         &mut self,
         diagnostics: &mut Diagnostics,
         commands: &mut Commands,
+        region_handler_res: &RegionHandlerRes,
         noise: &WorldNoiseSettings,
-        changes: Vec<(IVec3, Entity, NeededStateChange)>,
+        changes: Vec<(ChunkPos, Entity, NeededStateChange)>,
     ) {
         let async_pool = AsyncComputeTaskPool::get();
 
@@ -503,7 +512,7 @@ impl FixedChunkWorld {
             match change {
                 NeededStateChange::Generate => {
                     let Some(chunk) = self.chunks.get_mut(&pos) else {
-                        warn!("chunk at {pos} needs generated but it's not in the map");
+                        warn!("chunk at {} needs generated but it's not in the map", pos.0);
                         continue 'outer;
                     };
 
@@ -514,20 +523,29 @@ impl FixedChunkWorld {
                     let name = self.name.clone();
 
                     // Insert the task into the chunk entity
+                    let region_handler_inner = Arc::clone(&region_handler_res.0);
                     commands.entity(entity).insert(GenerateTask(
-                        pos,
+                        pos.0,
                         async_pool.spawn(async move {
-                            match read_chunk_from_file(&name, pos) {
-                                // Load from disk
-                                Some(existing_chunk) => {
-                                    debug!("loaded chunk at {pos}");
-                                    Chunk::from_container(existing_chunk)
+                            match region_handler_inner.write() {
+                                Ok(mut region_handler) => {
+                                    match region_handler.check_for_chunk(&name, pos) {
+                                        // Load from disk
+                                        Some(existing_chunk) => {
+                                            debug!("loaded chunk at {}", pos.0);
+                                            Chunk::from_container(existing_chunk.clone())
+                                        }
+                                        // Generate with noise
+                                        None => {
+                                            let new_noise = noise.generate_chunk_2d_noise(
+                                                IVec2::new(pos.0.x, pos.0.z),
+                                            );
+                                            noise.generate_chunk_from_noise(pos.0.y, &new_noise)
+                                        }
+                                    }
                                 }
-                                // Generate with noise
-                                None => {
-                                    let new_noise =
-                                        noise.generate_chunk_2d_noise(IVec2::new(pos.x, pos.z));
-                                    noise.generate_chunk_from_noise(pos.y, &new_noise)
+                                Err(_) => {
+                                    panic!("u done fucked up");
                                 }
                             }
                         }),
@@ -541,7 +559,7 @@ impl FixedChunkWorld {
                             chunk: Some(voxels),
                             ..
                         }),
-                    ) = (self.neighbors(pos), self.chunks.get_mut(&pos))
+                    ) = (self.neighbors(pos.0), self.chunks.get_mut(&pos))
                     {
                         // Update the state
                         *state = ChunkState::Rendering;
@@ -549,7 +567,7 @@ impl FixedChunkWorld {
                         let cloned_chunk = voxels.clone();
                         // Insert the task into the chunk entity
                         commands.entity(entity).insert(RenderTask(
-                            pos,
+                            pos.0,
                             async_pool.spawn(async move {
                                 crate::voxel::generate_mesh(&cloned_chunk, neighbors)
                             }),
@@ -564,13 +582,17 @@ impl FixedChunkWorld {
                     }) = self.chunks.remove(&pos)
                     {
                         // Try to save this chunk before it's deleted
-                        let world_name = self.name.to_string();
-                        let cloned_chunk = chunk.clone();
-                        async_pool
-                            .spawn(async move {
-                                write_chunk_to_file(&world_name, pos, &cloned_chunk.voxels)
-                            })
-                            .detach();
+                        match region_handler_res.0.write() {
+                            Ok(mut region_handler) => {
+                                *region_handler
+                                    .region_mut(pos.into())
+                                    .chunk_mut(InRegionChunkPos::from_world(pos)) =
+                                    Some(chunk.voxels);
+                            }
+                            Err(_) => {
+                                panic!("errrrrr")
+                            }
+                        }
                     };
                     // Despawn the entity
                     commands.entity(entity).despawn();
@@ -606,7 +628,7 @@ impl FixedChunkWorld {
 
         for (pos, entity, chunk) in generated_chunks {
             // Make sure the chunk is still loaded
-            let Some(wrapper) = self.chunks.get_mut(&pos) else {
+            let Some(wrapper) = self.chunks.get_mut(&ChunkPos(pos)) else {
                 continue;
             };
 
@@ -628,7 +650,7 @@ impl FixedChunkWorld {
 
         for (pos, entity, opt) in rendered_chunks {
             // Make sure this chunk is still loaded
-            let Some(wrapper) = self.chunks.get_mut(&pos) else {
+            let Some(wrapper) = self.chunks.get_mut(&ChunkPos(pos)) else {
                 continue;
             };
 
@@ -661,7 +683,7 @@ fn make_mesh_bundle(
         MaterialMeshBundle {
             mesh: meshes.add(mesh),
             material: Handle::clone(&material.0),
-            transform: ChunkPos { pos }.transform(),
+            transform: ChunkPos(pos).transform(),
             ..default()
         },
         collider,

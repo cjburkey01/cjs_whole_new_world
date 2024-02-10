@@ -8,6 +8,8 @@ pub enum PlyAction {
     Jump,
     Look, // Mouse look motion
     Fast, // Speed up key
+    NoClip,
+    Down, // Move down in no-clip mode
     // Left click
     Fire,
     // Pause
@@ -28,6 +30,8 @@ pub fn create_input_manager_bundle() -> InputManagerBundle<PlyAction> {
             .insert(DualAxis::mouse_motion(), PlyAction::Look)
             .insert(KeyCode::Escape, PlyAction::Pause)
             .insert(KeyCode::Space, PlyAction::Jump)
+            .insert(KeyCode::V, PlyAction::NoClip)
+            .insert(KeyCode::ControlLeft, PlyAction::Down)
             // Finish
             .build(),
     }

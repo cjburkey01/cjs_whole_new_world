@@ -6,8 +6,9 @@ use crate::{
             DIAG_NON_CULLED_CHUNKS, DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
             DIAG_VISIBLE_CHUNKS,
         },
-        controller_2::PlayerLookAtRes,
+        controller_2::{CharControl2, PlayerLookAtRes},
     },
+    voxel::{ChunkPos, REGION_WIDTH},
     AssetState, FontAssets,
 };
 use bevy::{
@@ -74,6 +75,9 @@ struct VisibleChunksText;
 #[derive(Component)]
 struct NonCulledChunksText;
 
+#[derive(Component)]
+struct PosText;
+
 fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
         .spawn(NodeBundle {
@@ -115,6 +119,60 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                     ),
                 ]),
                 FpsText,
+            ));
+
+            cmds.spawn((
+                TextBundle::from_sections([
+                    TextSection::new(
+                        "Voxel Pos: ",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    TextSection::new(
+                        "",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                    TextSection::new(
+                        " | Chunk Pos: ",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    TextSection::new(
+                        "",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                    TextSection::new(
+                        " | Region Pos: ",
+                        TextStyle {
+                            font: fonts.fira_sans_regular.clone(),
+                            font_size: 26.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    TextSection::new(
+                        "",
+                        TextStyle {
+                            font: fonts.fira_code_bold.clone(),
+                            font_size: 26.0,
+                            color: Color::YELLOW,
+                        },
+                    ),
+                ]),
+                PosText,
             ));
 
             cmds.spawn((
@@ -398,12 +456,14 @@ fn update_ui_system(
     looking_at: Res<PlayerLookAtRes>,
     mut queries: ParamSet<(
         Query<&mut Text, With<FpsText>>,
+        Query<&mut Text, With<PosText>>,
         Query<&mut Text, With<LookAtGlobalPosText>>,
         Query<&mut Text, With<LookAtChunkPosText>>,
         Query<&mut Text, With<LookAtInChunkPosText>>,
         Query<&mut Text, With<LookAtVoxelText>>,
         Query<&mut Text, With<NonCulledChunksText>>,
     )>,
+    ply_query: Query<(&Transform, &ChunkPos), (Without<Text>, With<CharControl2>)>,
 ) {
     let fps = diagnostics
         .get(FrameTimeDiagnosticsPlugin::FPS)
@@ -414,7 +474,20 @@ fn update_ui_system(
         }
     }
 
-    if let Ok(mut text) = queries.p1().get_single_mut() {
+    if let (Ok(mut text), Ok((transform, chunk_pos))) =
+        (queries.p1().get_single_mut(), ply_query.get_single())
+    {
+        text.sections[1].value = format!("{}", transform.translation.floor());
+        text.sections[3].value = format!("{}", chunk_pos.0);
+        text.sections[5].value = format!(
+            "{}",
+            chunk_pos
+                .0
+                .div_euclid(UVec3::splat(REGION_WIDTH).as_ivec3())
+        );
+    }
+
+    if let Ok(mut text) = queries.p2().get_single_mut() {
         text.sections[1].value = looking_at
             .0
             .as_ref()
@@ -422,7 +495,7 @@ fn update_ui_system(
             .unwrap_or_else(|| "Nothing".to_string());
     }
 
-    if let Ok(mut text) = queries.p2().get_single_mut() {
+    if let Ok(mut text) = queries.p3().get_single_mut() {
         text.sections[1].value = looking_at
             .0
             .as_ref()
@@ -430,7 +503,7 @@ fn update_ui_system(
             .unwrap_or_else(|| "Nothing".to_string());
     }
 
-    if let Ok(mut text) = queries.p3().get_single_mut() {
+    if let Ok(mut text) = queries.p4().get_single_mut() {
         text.sections[1].value = looking_at
             .0
             .as_ref()
@@ -438,7 +511,7 @@ fn update_ui_system(
             .unwrap_or_else(|| "Nothing".to_string());
     }
 
-    if let Ok(mut text) = queries.p4().get_single_mut() {
+    if let Ok(mut text) = queries.p5().get_single_mut() {
         text.sections[1].value = looking_at
             .0
             .as_ref()
