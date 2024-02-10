@@ -20,7 +20,7 @@ use bevy::{
 use bevy_rapier3d::{dynamics::RigidBody, prelude::Collider};
 use futures_lite::future::poll_once;
 use itertools::iproduct;
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 
 pub const DIAG_GENERATE_REQUIRED: DiagnosticId =
     DiagnosticId::from_u128(20645138512437775160238241943797);
@@ -34,6 +34,8 @@ pub const DIAG_RENDERED_CHUNKS: DiagnosticId =
 pub const DIAG_VISIBLE_CHUNKS: DiagnosticId = DiagnosticId::from_u128(71159199863847276575201272);
 pub const DIAG_DIRTY_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1071412727699475159529421);
 pub const DIAG_NON_CULLED_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1181181887682219941);
+
+pub const MAX_RENDERS_PER_FRAME: usize = 1;
 
 // Best (Even Ever?) Fucker: my chunk loading solution.
 pub struct BeefPlugin;
@@ -269,6 +271,7 @@ fn check_queue(
     mut chunks: ResMut<FixedChunkWorld>,
     mut generate_query: Query<(Entity, &mut GenerateTask), Without<RenderTask>>,
     mut render_query: Query<(Entity, &mut RenderTask), Without<GenerateTask>>,
+    loader: Query<&ChunkPos, With<ChunkLoader>>,
 ) {
     chunks.collect_finished_tasks(
         &mut commands,
@@ -276,6 +279,7 @@ fn check_queue(
         &mut meshes,
         &mut generate_query,
         &mut render_query,
+        &loader,
     );
 }
 
@@ -454,13 +458,17 @@ impl FixedChunkWorld {
         // loading first. The order isn't stable, but this means closer chunk
         // tasks should be spawned first.
         changes.sort_unstable_by(|(pos1, ..), (pos2, ..)| {
-            (pos1.0 - loader_chunk.0)
-                .abs()
-                .min_element()
-                .cmp(&(pos2.0 - loader_chunk.0).abs().min_element())
+            Self::sort_by_distance(loader_chunk.0, pos1.0, pos2.0)
         });
 
         changes
+    }
+
+    fn sort_by_distance(loader_pos: IVec3, pos1: IVec3, pos2: IVec3) -> Ordering {
+        (pos1 - loader_pos)
+            .abs()
+            .min_element()
+            .cmp(&(pos2 - loader_pos).abs().min_element())
     }
 
     /// Get the solid face bitmap for each chunk neighboring the provided one
@@ -613,6 +621,7 @@ impl FixedChunkWorld {
         meshes: &mut Assets<Mesh>,
         generate_query: &mut Query<(Entity, &mut GenerateTask), Without<RenderTask>>,
         render_query: &mut Query<(Entity, &mut RenderTask), Without<GenerateTask>>,
+        loader: &Query<&ChunkPos, With<ChunkLoader>>,
     ) {
         // Collect the chunks that have finished generating
         let generated_chunks = generate_query
@@ -640,30 +649,43 @@ impl FixedChunkWorld {
             commands.entity(entity).remove::<GenerateTask>();
         }
 
-        // Collect finished rendering tasks
-        let rendered_chunks = render_query
-            .iter_mut()
-            .filter_map(|(entity, mut task)| {
-                block_on(poll_once(&mut task.1)).map(|chunk| (task.0, entity, chunk))
-            })
-            .collect::<Vec<_>>();
+        // Perform up to the maximum number of chunk meshes added to the
+        // assets resource.
 
-        for (pos, entity, opt) in rendered_chunks {
-            // Make sure this chunk is still loaded
-            let Some(wrapper) = self.chunks.get_mut(&ChunkPos(pos)) else {
-                continue;
-            };
+        let mut render_positions = render_query.iter_mut().collect::<Vec<_>>();
+        if let Ok(loader_pos) = loader.get_single() {
+            let loader_pos = loader_pos.0;
+            render_positions.sort_unstable_by(|(_, task1), (_, task2)| {
+                Self::sort_by_distance(loader_pos, task1.0, task2.0)
+            });
+        }
 
-            // Update the state
-            wrapper.state = ChunkState::Rendered;
+        let mut rendered_count = 0;
+        'render_loop: for (entity, mut task) in render_positions {
+            let pos = task.0;
 
-            let mut e = commands.entity(entity);
-            // Remove the render task
-            e.remove::<RenderTask>();
+            if let Some(optional_chunk) = block_on(poll_once(&mut task.1)) {
+                // Make sure this chunk is still loaded
+                let Some(wrapper) = self.chunks.get_mut(&ChunkPos(pos)) else {
+                    continue;
+                };
 
-            // Insert the mesh information if it is not empty
-            if let Some((collider, mesh)) = opt {
-                make_mesh_bundle(&mut e, pos, meshes, material, collider, mesh);
+                // Update the state
+                wrapper.state = ChunkState::Rendered;
+
+                let mut e = commands.entity(entity);
+                // Remove the render task
+                e.remove::<RenderTask>();
+
+                // Insert the mesh information if it is not empty
+                if let Some((collider, mesh)) = optional_chunk {
+                    make_mesh_bundle(&mut e, pos, meshes, material, collider, mesh);
+
+                    rendered_count += 1;
+                    if rendered_count >= MAX_RENDERS_PER_FRAME {
+                        break 'render_loop;
+                    }
+                }
             }
         }
     }
