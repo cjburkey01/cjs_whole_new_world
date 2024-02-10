@@ -1,5 +1,7 @@
 use crate::{io::write_regions_to_file, plugin::beef::FixedChunkWorld, voxel::RegionHandler};
-use bevy::{prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer};
+use bevy::{
+    app::AppExit, prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer,
+};
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -11,19 +13,33 @@ impl Plugin for RegionSaverPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            save_regions_system
+            async_ish_save_regions_system
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<RegionHandlerRes>())
                 .run_if(on_timer(Duration::from_secs(20))),
-        );
+        )
+        .add_systems(Last, save_regions_on_exit_system);
     }
 }
 
 #[derive(Default, Resource)]
 pub struct RegionHandlerRes(pub Arc<RwLock<RegionHandler>>);
 
-fn save_regions_system(
-    region_handler: ResMut<RegionHandlerRes>,
+fn save_regions_on_exit_system(
+    mut exit_reader: EventReader<AppExit>,
+    region_handler: Option<Res<RegionHandlerRes>>,
+    chunk_world: Option<Res<FixedChunkWorld>>,
+) {
+    if exit_reader.len() > 0 {
+        debug!("exiting game, checking if we need to save regions");
+        if let (Some(region_handler), Some(chunk_world)) = (region_handler, chunk_world) {
+            force_sync_regions_save(&region_handler, &chunk_world);
+        }
+    }
+}
+
+fn async_ish_save_regions_system(
+    region_handler: Res<RegionHandlerRes>,
     chunk_world: Res<FixedChunkWorld>,
 ) {
     match region_handler.0.write() {
@@ -53,4 +69,19 @@ fn save_regions_system(
             }
         })
         .detach();
+}
+
+pub fn force_sync_regions_save(region_handler: &RegionHandlerRes, chunk_world: &FixedChunkWorld) {
+    debug!("forcing world save");
+    match region_handler.0.write() {
+        Ok(mut region_handler) => {
+            info!("saving world!");
+            region_handler.extract_chunks(chunk_world);
+            write_regions_to_file(chunk_world.name(), &region_handler);
+            info!("world saved!");
+        }
+        Err(_) => {
+            error!("FAILED TO LOCK REGION HANDLER TO EXTRACT WORLD!!!");
+        }
+    }
 }

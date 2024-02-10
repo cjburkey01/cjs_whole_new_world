@@ -6,6 +6,7 @@ use crate::{
     plugin::{
         beef::{ChunkEntity, FixedChunkWorld},
         chunk_loader::ChunkLoader,
+        region_saver::{force_sync_regions_save, RegionHandlerRes},
     },
     voxel::world_noise::WorldNoiseSettings,
     FontAssets, PhysTestBox,
@@ -51,10 +52,16 @@ struct ExitButton;
 
 fn despawn_world_stuffs(
     mut commands: Commands,
+    region_handler: Option<Res<RegionHandlerRes>>,
+    chunk_world: Option<Res<FixedChunkWorld>>,
     chunk_query: Query<Entity, With<ChunkEntity>>,
     loaders_query: Query<Entity, With<ChunkLoader>>,
     phys_test_box: Query<Entity, With<PhysTestBox>>,
 ) {
+    if let (Some(region_handler), Some(chunk_world)) = (region_handler, chunk_world) {
+        force_sync_regions_save(&region_handler, &chunk_world);
+    }
+
     for chunk in chunk_query.iter() {
         commands.entity(chunk).despawn();
     }
@@ -66,6 +73,7 @@ fn despawn_world_stuffs(
     }
     commands.remove_resource::<WorldNoiseSettings>();
     commands.remove_resource::<FixedChunkWorld>();
+    commands.remove_resource::<RegionHandlerRes>();
 }
 
 fn spawn_game_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
