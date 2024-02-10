@@ -1,4 +1,6 @@
-use crate::{io::write_regions_to_file, plugin::beef::FixedChunkWorld, voxel::RegionHandler};
+use crate::{
+    io::write_regions_to_file, plugin::voxel_world::beef::FixedChunkWorld, voxel::RegionHandler,
+};
 use bevy::{
     app::AppExit, prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer,
 };

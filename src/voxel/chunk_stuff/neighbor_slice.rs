@@ -1,4 +1,4 @@
-use super::{VoxelAxis, CHUNK_SQUARE};
+use crate::voxel::{VoxelAxis, CHUNK_SQUARE};
 use bitvec::prelude::BitVec;
 
 #[derive(Debug, Clone)]

@@ -1,23 +1,13 @@
 mod axis;
 mod biome;
-mod chunk;
-mod chunk_mesh;
-mod chunk_pos;
-mod container;
-mod neighbor_slice;
-#[allow(unused)]
+mod chunk_stuff;
 mod region;
 mod voxels;
 pub mod world_noise;
 
 pub use axis::*;
 pub use biome::*;
-pub use chunk::*;
-pub use chunk_mesh::*;
-pub use chunk_pos::*;
-pub use container::*;
-pub use neighbor_slice::*;
-#[allow(unused)]
+pub use chunk_stuff::{chunk::*, chunk_mesh::*, chunk_pos::*, container::*, neighbor_slice::*};
 pub use region::*;
 pub use voxels::*;
 

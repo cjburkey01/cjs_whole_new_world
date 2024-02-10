@@ -1,9 +1,12 @@
-use super::{
-    chunk_loader::ChunkLoader, controller_2::CharControl2, game_settings::GameSettings,
-    voxel_material::ChunkMaterialRes,
-};
 use crate::{
-    plugin::{region_saver::RegionHandlerRes, saver::IoCleanChunk},
+    plugin::{
+        control::controller_2::CharControl2,
+        game_settings::GameSettings,
+        voxel_world::{
+            chunk_loader::ChunkLoader, region_saver::RegionHandlerRes,
+            voxel_material::ChunkMaterialRes,
+        },
+    },
     voxel::{
         world_noise::WorldNoiseSettings, Chunk, ChunkPos, InRegionChunkPos, NeighborChunkSlices,
         CHUNK_WIDTH, SLICE_DIRECTIONS,
@@ -196,7 +199,6 @@ fn update_dirty_chunks_system(
             // Remove the dirty marker
             cmds.remove::<DirtyChunk>();
             // Remove the marker for chunks that do *not* need to be saved
-            cmds.remove::<IoCleanChunk>();
             // Generate the mesh
             if let Some((collider, mesh)) = crate::voxel::generate_mesh(chunk_voxels, neighbors) {
                 // Insert the mesh bundle; this is the same function that is

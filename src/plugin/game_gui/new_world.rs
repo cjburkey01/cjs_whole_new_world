@@ -4,13 +4,15 @@ use super::{
 };
 use crate::{
     plugin::{
-        beef::FixedChunkWorld,
-        chunk_loader::ChunkLoader,
-        control::pause::PauseState,
-        controller_2::{CharControl2, PlayerStartFrozen},
+        control::{
+            controller_2::{CharControl2, PlayerStartFrozen},
+            pause::PauseState,
+        },
         game_gui::text_input::TextValue,
         game_settings::GameSettings,
-        region_saver::RegionHandlerRes,
+        voxel_world::{
+            beef::FixedChunkWorld, chunk_loader::ChunkLoader, region_saver::RegionHandlerRes,
+        },
     },
     voxel::{world_noise::WorldNoiseSettings, BiomeTable},
     FontAssets,

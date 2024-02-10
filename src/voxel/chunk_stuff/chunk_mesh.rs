@@ -1,8 +1,10 @@
-use super::{
-    Chunk, InChunkPos, NeighborChunkSlices, SliceDirection, Voxel, CHUNK_SQUARE, CHUNK_WIDTH,
-    SLICE_DIRECTIONS,
+use crate::{
+    plugin::voxel_world::voxel_material::ATTRIBUTE_HACK_VERT,
+    voxel::{
+        Chunk, InChunkPos, NeighborChunkSlices, SliceDirection, Voxel, CHUNK_SQUARE, CHUNK_WIDTH,
+        SLICE_DIRECTIONS,
+    },
 };
-use crate::plugin::voxel_material::ATTRIBUTE_HACK_VERT;
 use bevy::{
     math::{UVec2, Vec3},
     prelude::Mesh,

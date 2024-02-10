@@ -1,13 +1,12 @@
-use super::{
-    beef::{ChunkEntity, ChunkState, FixedChunkWorld, LoadedChunk},
-    control::{
-        input::{create_input_manager_bundle, PlyAction},
-        pause::PauseState,
-        PlyCamRot, PrimaryCamera,
-    },
-};
 use crate::{
-    plugin::beef::DirtyChunk,
+    plugin::{
+        control::{
+            input::{create_input_manager_bundle, PlyAction},
+            pause::PauseState,
+            PlyCamRot, PrimaryCamera,
+        },
+        voxel_world::beef::{ChunkEntity, ChunkState, DirtyChunk, FixedChunkWorld, LoadedChunk},
+    },
     voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_WIDTH},
 };
 use bevy::{prelude::*, time::common_conditions::on_timer};

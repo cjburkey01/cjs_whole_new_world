@@ -1,4 +1,4 @@
-use super::{
+use crate::voxel::{
     InChunkPos, NeighborChunkSlices, SliceDirection, Voxel, VoxelContainer, CHUNK_CUBE,
     CHUNK_WIDTH, SLICE_DIRECTIONS,
 };

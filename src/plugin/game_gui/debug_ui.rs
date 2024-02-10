@@ -1,12 +1,12 @@
 use crate::{
     init_world_system,
     plugin::{
-        beef::{
+        control::controller_2::{CharControl2, PlayerLookAtRes},
+        voxel_world::beef::{
             DIAG_DELETE_REQUIRED, DIAG_DIRTY_CHUNKS, DIAG_GENERATED_CHUNKS, DIAG_GENERATE_REQUIRED,
             DIAG_NON_CULLED_CHUNKS, DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
             DIAG_VISIBLE_CHUNKS,
         },
-        controller_2::{CharControl2, PlayerLookAtRes},
     },
     voxel::{ChunkPos, REGION_WIDTH},
     AssetState, FontAssets,
@@ -79,6 +79,9 @@ struct NonCulledChunksText;
 struct PosText;
 
 fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
+    let font_size = 20.0;
+    let space_margin = 10.0;
+
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -97,7 +100,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -105,7 +108,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         " ",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -113,7 +116,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "FPS",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -121,21 +124,37 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 FpsText,
             ));
 
+            cmds.spawn(TextBundle {
+                style: Style {
+                    margin: UiRect::new(Val::ZERO, Val::ZERO, Val::Px(space_margin), Val::ZERO),
+                    ..default()
+                },
+                text: Text::from_section(
+                    "Voxel stuff:",
+                    TextStyle {
+                        font: fonts.fira_sans_regular.clone(),
+                        font_size,
+                        color: Color::WHITE,
+                    },
+                ),
+                ..default()
+            });
+
             cmds.spawn((
                 TextBundle::from_sections([
                     TextSection::new(
                         "Voxel Pos: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "frank",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -143,15 +162,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         " | Chunk Pos: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "was",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -159,15 +178,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         " | Region Pos: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "here!",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -181,15 +200,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Looking at voxel pos: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "your",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -203,15 +222,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Looking in chunk: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "mom",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -225,15 +244,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Looking at voxel pos in chunk: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "was",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -247,15 +266,15 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Looking at voxel type: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
                     TextSection::new(
-                        "",
+                        "here",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -263,14 +282,21 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 LookAtVoxelText,
             ));
 
-            cmds.spawn(TextBundle::from_section(
-                "Chunk stuff:",
-                TextStyle {
-                    font: fonts.fira_sans_regular.clone(),
-                    font_size: 26.0,
-                    color: Color::WHITE,
+            cmds.spawn(TextBundle {
+                style: Style {
+                    margin: UiRect::new(Val::ZERO, Val::ZERO, Val::Px(space_margin), Val::ZERO),
+                    ..default()
                 },
-            ));
+                text: Text::from_section(
+                    "Chunk stuff:",
+                    TextStyle {
+                        font: fonts.fira_sans_regular.clone(),
+                        font_size,
+                        color: Color::WHITE,
+                    },
+                ),
+                ..default()
+            });
 
             cmds.spawn((
                 TextBundle::from_sections([
@@ -278,7 +304,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks needing generated: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -286,7 +312,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -300,7 +326,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks needing rendered: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -308,7 +334,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -322,7 +348,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks needing deleted: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -330,7 +356,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -344,7 +370,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks generated: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -352,7 +378,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -366,7 +392,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks rendered: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -374,7 +400,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -388,7 +414,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Chunks needing update: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -396,7 +422,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -410,7 +436,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Visible chunks: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -418,7 +444,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),
@@ -432,7 +458,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "Non-culled chunks: ",
                         TextStyle {
                             font: fonts.fira_sans_regular.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::WHITE,
                         },
                     ),
@@ -440,7 +466,7 @@ fn init_ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         "0",
                         TextStyle {
                             font: fonts.fira_code_bold.clone(),
-                            font_size: 26.0,
+                            font_size,
                             color: Color::YELLOW,
                         },
                     ),

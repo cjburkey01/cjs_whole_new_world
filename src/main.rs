@@ -4,6 +4,10 @@ mod io;
 mod plugin;
 mod voxel;
 
+use crate::plugin::{
+    control::controller_2,
+    voxel_world::{beef, chunk_pos_update, region_saver, voxel_material},
+};
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     log::{Level, LogPlugin},
@@ -69,11 +73,10 @@ fn main() {
             TextInputPlugin,
             control::PlyControlPlugin,
             voxel_material::VoxelMaterialPlugin,
-            chunk_pos::ChunkPosPlugin,
+            chunk_pos_update::ChunkPosPlugin,
             controller_2::Controller2ElectricBoogalooPlugin,
             beef::BeefPlugin,
             game_gui::GameGuiPlugin,
-            saver::SaverPlugin,
             region_saver::RegionSaverPlugin,
         ))
         .add_state::<AssetState>()

@@ -9,11 +9,6 @@ impl Plugin for ChunkPosPlugin {
     }
 }
 
-/*#[derive(Default, Debug, Component, Copy, Clone, Eq, PartialEq)]
-pub struct ChunkPos {
-    pub pos: IVec3,
-}*/
-
 #[allow(clippy::type_complexity)]
 fn on_update_translate_chunk_pos(
     mut query: Query<

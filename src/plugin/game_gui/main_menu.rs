@@ -3,7 +3,7 @@ use super::{
     update_state_button, MenuState,
 };
 use crate::{
-    plugin::{
+    plugin::voxel_world::{
         beef::{ChunkEntity, FixedChunkWorld},
         chunk_loader::ChunkLoader,
         region_saver::{force_sync_regions_save, RegionHandlerRes},

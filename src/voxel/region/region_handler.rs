@@ -1,11 +1,10 @@
-use super::{ChunkPos, InRegionChunkPos, RegionPos, VoxelContainer};
-use crate::{io::read_region_from_file, plugin::beef::FixedChunkWorld};
-use bevy::{
-    prelude::*,
-    utils::{hashbrown::hash_map::Iter, HashMap},
+use super::VoxelRegion;
+use crate::{
+    io::read_region_from_file,
+    plugin::voxel_world::beef::FixedChunkWorld,
+    voxel::{ChunkPos, InRegionChunkPos, RegionPos, VoxelContainer},
 };
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use bevy::utils::{hashbrown::hash_map::Iter, HashMap};
 
 pub const REGION_WIDTH: u32 = 8;
 pub const REGION_SQUARE: u32 = REGION_WIDTH * REGION_WIDTH;
@@ -45,6 +44,7 @@ impl RegionHandler {
         self.regions.get(&region_pos)
     }
 
+    #[allow(unused)]
     pub fn get_region_mut(&mut self, region_pos: RegionPos) -> Option<&mut VoxelRegion> {
         self.regions.get_mut(&region_pos)
     }
@@ -63,6 +63,7 @@ impl RegionHandler {
             .and_then(|region| region.chunk(InRegionChunkPos::from_world(chunk_pos)))
     }
 
+    #[allow(unused)]
     pub fn get_chunk_mut(&mut self, chunk_pos: ChunkPos) -> Option<&mut VoxelContainer> {
         let region_pos = chunk_pos.into();
         self.get_region_mut(region_pos)?
@@ -74,38 +75,5 @@ impl RegionHandler {
         let region_pos = chunk_pos.into();
         self.region_mut(region_pos)
             .chunk_mut(InRegionChunkPos::from_world(chunk_pos))
-    }
-}
-
-#[serde_as]
-#[derive(Deserialize, Serialize)]
-pub struct VoxelRegion {
-    #[serde_as(as = "Box<[_; REGION_CUBE as usize]>")]
-    chunks: Box<[Option<VoxelContainer>; REGION_CUBE as usize]>,
-}
-
-impl Default for VoxelRegion {
-    fn default() -> Self {
-        Self {
-            chunks: Box::new(vec![None; REGION_CUBE as usize].try_into().unwrap()),
-        }
-    }
-}
-
-impl VoxelRegion {
-    pub fn chunk(&self, pos: InRegionChunkPos) -> Option<&VoxelContainer> {
-        self.chunks[pos.index()].as_ref()
-    }
-
-    pub fn chunk_mut(&mut self, pos: InRegionChunkPos) -> &mut Option<VoxelContainer> {
-        &mut self.chunks[pos.index()]
-    }
-
-    pub fn chunks(&self) -> &[Option<VoxelContainer>] {
-        self.chunks.as_slice()
-    }
-
-    pub fn chunks_mut(&mut self) -> &mut [Option<VoxelContainer>] {
-        self.chunks.as_mut_slice()
     }
 }

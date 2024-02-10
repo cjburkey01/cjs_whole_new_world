@@ -1,3 +1,4 @@
+pub mod controller_2;
 pub mod input;
 pub mod pause;
 

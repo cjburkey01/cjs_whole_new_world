@@ -1,4 +1,4 @@
-use super::{InChunkPos, Voxel, CHUNK_CUBE};
+use crate::voxel::{InChunkPos, Voxel, CHUNK_CUBE};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
