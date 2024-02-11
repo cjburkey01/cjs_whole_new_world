@@ -31,9 +31,6 @@ pub enum AssetState {
     Ready,
 }
 
-#[derive(Component)]
-pub struct PhysTestBox;
-
 #[allow(unused)]
 #[derive(AssetCollection, Resource)]
 struct FontAssets {

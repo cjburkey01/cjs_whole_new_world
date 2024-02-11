@@ -14,7 +14,7 @@ use crate::{
             beef::FixedChunkWorld, chunk_loader::ChunkLoader, region_saver::RegionHandlerRes,
         },
     },
-    voxel::{world_noise::WorldNoiseSettings, BiomeTable},
+    voxel::{world_noise::WorldNoiseSettings, BiomeTable, ChunkPos},
     FontAssets,
 };
 use bevy::prelude::*;
@@ -174,8 +174,9 @@ fn on_pressed_create_button_system(
     commands.insert_resource(FixedChunkWorld::new(name, seed));
     if let Ok(entity) = ply_entity.get_single() {
         commands.entity(entity).insert((
-            Transform::from_xyz(15.5, 145.0, 15.5),
+            Transform::from_xyz(15.5, 10.0, 15.5),
             ChunkLoader::new(game_settings.load_radius),
+            ChunkPos::default(),
             PlayerStartFrozen,
         ));
     }

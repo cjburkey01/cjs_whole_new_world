@@ -8,8 +8,8 @@ use crate::{
         },
     },
     voxel::{
-        world_noise::WorldNoiseSettings, Chunk, ChunkPos, InRegionChunkPos, NeighborChunkSlices,
-        CHUNK_WIDTH, SLICE_DIRECTIONS,
+        world_noise::{Chunk2dNoiseValues, WorldNoiseSettings},
+        Chunk, ChunkPos, InRegionChunkPos, NeighborChunkSlices, CHUNK_WIDTH, SLICE_DIRECTIONS,
     },
 };
 use bevy::{
@@ -292,7 +292,7 @@ pub struct ChunkEntity(pub IVec3);
 pub struct DirtyChunk;
 
 #[derive(Component)]
-struct GenerateTask(IVec3, Task<Chunk>);
+struct GenerateTask(IVec3, Task<(Chunk, Option<Chunk2dNoiseValues>)>);
 
 #[derive(Component)]
 struct RenderTask(IVec3, Task<Option<(Collider, Mesh)>>);
@@ -337,6 +337,7 @@ pub struct FixedChunkWorld {
     name: String,
     seed: u32,
     pub(crate) chunks: HashMap<ChunkPos, LoadedChunk>,
+    pub(crate) heightmaps: HashMap<IVec2, Chunk2dNoiseValues>,
 }
 
 impl FixedChunkWorld {
@@ -345,6 +346,7 @@ impl FixedChunkWorld {
             name,
             seed,
             chunks: default(),
+            heightmaps: default(),
         }
     }
 
@@ -531,23 +533,41 @@ impl FixedChunkWorld {
 
                     // Insert the task into the chunk entity
                     let region_handler_inner = Arc::clone(&region_handler_res.0);
+                    let chunk_noise = self.heightmaps.get(&IVec2::new(pos.0.x, pos.0.z)).cloned();
                     commands.entity(entity).insert(GenerateTask(
                         pos.0,
                         async_pool.spawn(async move {
+                            let needed_new_noise = chunk_noise.is_none();
+                            let new_noise = chunk_noise.unwrap_or_else(|| {
+                                debug!("new heightmap at {},{}", pos.0.x, pos.0.z);
+                                noise.generate_chunk_2d_noise(IVec2::new(pos.0.x, pos.0.z))
+                            });
+
                             match region_handler_inner.write() {
                                 Ok(mut region_handler) => {
                                     match region_handler.check_for_chunk(&name, pos) {
                                         // Load from disk
                                         Some(existing_chunk) => {
                                             debug!("loaded chunk at {}", pos.0);
-                                            Chunk::from_container(existing_chunk.clone())
+                                            (
+                                                Chunk::from_container(existing_chunk.clone()),
+                                                match needed_new_noise {
+                                                    true => Some(new_noise),
+                                                    false => None,
+                                                },
+                                            )
                                         }
                                         // Generate with noise
                                         None => {
-                                            let new_noise = noise.generate_chunk_2d_noise(
-                                                IVec2::new(pos.0.x, pos.0.z),
-                                            );
-                                            noise.generate_chunk_from_noise(pos.0.y, &new_noise)
+                                            debug!("generating chunk");
+                                            (
+                                                noise
+                                                    .generate_chunk_from_noise(pos.0.y, &new_noise),
+                                                match needed_new_noise {
+                                                    true => Some(new_noise),
+                                                    false => None,
+                                                },
+                                            )
                                         }
                                     }
                                 }
@@ -627,14 +647,20 @@ impl FixedChunkWorld {
             .iter_mut()
             .filter_map(|(entity, mut task)| {
                 if commands.get_entity(entity).is_some() {
-                    block_on(poll_once(&mut task.1)).map(|chunk| (task.0, entity, chunk))
+                    block_on(poll_once(&mut task.1))
+                        .map(|(chunk, heightmap)| (task.0, entity, chunk, heightmap))
                 } else {
                     None
                 }
             })
             .collect::<Vec<_>>();
 
-        for (pos, entity, chunk) in generated_chunks {
+        for (pos, entity, chunk, heightmap) in generated_chunks {
+            if let Some(new_heightmap) = heightmap {
+                self.heightmaps
+                    .insert(IVec2::new(pos.x, pos.z), new_heightmap);
+            }
+
             // Make sure the chunk is still loaded
             let Some(wrapper) = self.chunks.get_mut(&ChunkPos(pos)) else {
                 continue;

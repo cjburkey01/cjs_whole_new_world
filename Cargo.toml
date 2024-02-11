@@ -9,9 +9,10 @@ lazy_static = "1.4.0"
 serde = "1.0.196"
 serde_with = "3.6.0"
 bincode = {version = "2.0.0-rc.3", features = ["serde"]}
+ron = "0.8.1"
 bevy = { version = "0.12.1", features = ["serialize"] }
 bevy_asset_loader = "0.19.1"
-bevy_rapier3d = { version = "0.24.0", features = ["enhanced-determinism", "debug-render-3d"] }
+bevy_rapier3d = { version = "0.24.0", features = ["debug-render-3d"] }
 leafwing-input-manager = "0.11.2"
 bitvec = "1.0.1"
 noise = "0.8.2"

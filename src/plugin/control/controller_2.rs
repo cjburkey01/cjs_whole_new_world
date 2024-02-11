@@ -7,7 +7,7 @@ use crate::{
         },
         voxel_world::beef::{ChunkEntity, ChunkState, DirtyChunk, FixedChunkWorld, LoadedChunk},
     },
-    voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_WIDTH},
+    voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_SQUARE, CHUNK_WIDTH},
 };
 use bevy::{prelude::*, time::common_conditions::on_timer};
 use bevy_rapier3d::prelude::*;
@@ -27,16 +27,37 @@ impl Plugin for Controller2ElectricBoogalooPlugin {
                     update_character_controller_position,
                 )
                     .chain(),
-                unfreeze_after_time_system.run_if(on_timer(Duration::from_secs(5))),
+                unfreeze_once_ready_system.run_if(on_timer(Duration::from_secs(1))),
             )
                 .run_if(in_state(PauseState::Playing)),
         );
     }
 }
 
-fn unfreeze_after_time_system(mut commands: Commands, ply: Query<Entity, With<PlayerStartFrozen>>) {
-    if let Ok(ply) = ply.get_single() {
-        commands.entity(ply).remove::<PlayerStartFrozen>();
+fn unfreeze_once_ready_system(
+    mut commands: Commands,
+    chunk_world: Res<FixedChunkWorld>,
+    mut ply: Query<(Entity, &mut Transform), With<PlayerStartFrozen>>,
+) {
+    if let Some(heightmap) = chunk_world.heightmaps.get(&IVec2::ZERO) {
+        let height = heightmap.heightmap[(CHUNK_SQUARE / 2) as usize] as i32 + 5;
+        if let Ok((ply, mut transform)) = ply.get_single_mut() {
+            transform.translation = UVec3::new(CHUNK_WIDTH, 0, CHUNK_WIDTH).as_vec3() / 2.0;
+            transform.translation.y = height as f32;
+            if chunk_world
+                .chunks
+                .get(&ChunkPos(IVec3::new(
+                    0,
+                    height.div_euclid(CHUNK_WIDTH as i32),
+                    0,
+                )))
+                .map(|lc| lc.state == ChunkState::Rendered)
+                .unwrap_or(false)
+            {
+                // Middle of the chunk
+                commands.entity(ply).remove::<PlayerStartFrozen>();
+            }
+        }
     }
 }
 
