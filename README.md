@@ -40,3 +40,7 @@
 ![Screenshot of of v0.0.7 more digging, across chunk borders now allowed!](./screenshots/v0.0.7-5.png)
 
 ![Screenshot of of v0.0.8 i made a hole](./screenshots/v0.0.8-1.png)
+
+![Screenshot of of v0.0.9 just nice land](./screenshots/v0.0.9-1.png)
+
+![Screenshot of of v0.0.9 bigg hill](./screenshots/v0.0.9-2.png)
