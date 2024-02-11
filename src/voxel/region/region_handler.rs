@@ -6,10 +6,6 @@ use crate::{
 };
 use bevy::utils::{hashbrown::hash_map::Iter, HashMap};
 
-pub const REGION_WIDTH: u32 = 8;
-pub const REGION_SQUARE: u32 = REGION_WIDTH * REGION_WIDTH;
-pub const REGION_CUBE: u32 = REGION_SQUARE * REGION_WIDTH;
-
 #[derive(Default)]
 pub struct RegionHandler {
     regions: HashMap<RegionPos, VoxelRegion>,

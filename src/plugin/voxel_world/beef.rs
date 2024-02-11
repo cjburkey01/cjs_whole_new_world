@@ -466,10 +466,8 @@ impl FixedChunkWorld {
     }
 
     fn sort_by_distance(loader_pos: IVec3, pos1: IVec3, pos2: IVec3) -> Ordering {
-        (pos1 - loader_pos)
-            .abs()
-            .min_element()
-            .cmp(&(pos2 - loader_pos).abs().min_element())
+        pos1.distance_squared(loader_pos)
+            .cmp(&pos2.distance_squared(loader_pos))
     }
 
     /// Get the solid face bitmap for each chunk neighboring the provided one
@@ -539,7 +537,6 @@ impl FixedChunkWorld {
                         async_pool.spawn(async move {
                             let needed_new_noise = chunk_noise.is_none();
                             let new_noise = chunk_noise.unwrap_or_else(|| {
-                                debug!("new heightmap at {},{}", pos.0.x, pos.0.z);
                                 noise.generate_chunk_2d_noise(IVec2::new(pos.0.x, pos.0.z))
                             });
 
@@ -547,28 +544,21 @@ impl FixedChunkWorld {
                                 Ok(mut region_handler) => {
                                     match region_handler.check_for_chunk(&name, pos) {
                                         // Load from disk
-                                        Some(existing_chunk) => {
-                                            debug!("loaded chunk at {}", pos.0);
-                                            (
-                                                Chunk::from_container(existing_chunk.clone()),
-                                                match needed_new_noise {
-                                                    true => Some(new_noise),
-                                                    false => None,
-                                                },
-                                            )
-                                        }
+                                        Some(existing_chunk) => (
+                                            Chunk::from_container(existing_chunk.clone()),
+                                            match needed_new_noise {
+                                                true => Some(new_noise),
+                                                false => None,
+                                            },
+                                        ),
                                         // Generate with noise
-                                        None => {
-                                            debug!("generating chunk");
-                                            (
-                                                noise
-                                                    .generate_chunk_from_noise(pos.0.y, &new_noise),
-                                                match needed_new_noise {
-                                                    true => Some(new_noise),
-                                                    false => None,
-                                                },
-                                            )
-                                        }
+                                        None => (
+                                            noise.generate_chunk_from_noise(pos.0.y, &new_noise),
+                                            match needed_new_noise {
+                                                true => Some(new_noise),
+                                                false => None,
+                                            },
+                                        ),
                                     }
                                 }
                                 Err(_) => {

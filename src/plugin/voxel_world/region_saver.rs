@@ -18,7 +18,7 @@ impl Plugin for RegionSaverPlugin {
             async_ish_save_regions_system
                 .run_if(resource_exists::<FixedChunkWorld>())
                 .run_if(resource_exists::<RegionHandlerRes>())
-                .run_if(on_timer(Duration::from_secs(20))),
+                .run_if(on_timer(Duration::from_secs(300))),
         )
         .add_systems(Last, save_regions_on_exit_system);
     }
@@ -79,11 +79,18 @@ pub fn force_sync_regions_save(region_handler: &RegionHandlerRes, chunk_world: &
         Ok(mut region_handler) => {
             info!("saving world!");
             region_handler.extract_chunks(chunk_world);
+        }
+        Err(_) => {
+            error!("FAILED TO LOCK REGION HANDLER TO EXTRACT WORLD!!!");
+        }
+    }
+    match region_handler.0.read() {
+        Ok(region_handler) => {
             write_regions_to_file(chunk_world.name(), &region_handler);
             info!("world saved!");
         }
         Err(_) => {
-            error!("FAILED TO LOCK REGION HANDLER TO EXTRACT WORLD!!!");
+            error!("FAILED TO LOCK REGION HANDLER TO SAVE REGIONS!!!");
         }
     }
 }
