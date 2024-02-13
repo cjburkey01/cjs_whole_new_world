@@ -44,3 +44,7 @@
 ![Screenshot of of v0.0.9 just nice land](./screenshots/v0.0.9-1.png)
 
 ![Screenshot of of v0.0.9 bigg hill](./screenshots/v0.0.9-2.png)
+
+![Screenshot of of v0.0.9 flat hills](./screenshots/v0.0.9-3.png)
+
+![Screenshot of of v0.0.9 ridge](./screenshots/v0.0.9-4.png)
