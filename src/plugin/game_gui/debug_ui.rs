@@ -1,6 +1,7 @@
 use crate::{
     init_world_system,
     plugin::{
+        asset::{AssetState, FontAssets},
         control::controller_2::{CharControl2, PlayerLookAtRes},
         voxel_world::beef::{
             DIAG_DELETE_REQUIRED, DIAG_DIRTY_CHUNKS, DIAG_GENERATED_CHUNKS, DIAG_GENERATE_REQUIRED,
@@ -9,7 +10,6 @@ use crate::{
         },
     },
     voxel::{ChunkPos, REGION_WIDTH},
-    AssetState, FontAssets,
 };
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},

@@ -1,8 +1,8 @@
 use super::{
     label_bundle, make_btn, menu_node, menu_title_text_bundle, menu_wrapper_node,
-    update_state_button, was_button_just_pressed, MenuState,
+    update_state_button, was_button_just_pressed, MenuState, DEFAULT_BACK_COVER_COLOR,
 };
-use crate::{plugin::game_settings::GameSettings, FontAssets};
+use crate::plugin::{asset::FontAssets, game_settings::GameSettings};
 use bevy::prelude::*;
 
 pub struct PauseSettingsMenuPlugin;
@@ -55,7 +55,10 @@ fn spawn_pause_settings_menu_system(
 ) {
     // Entire screen node
     commands
-        .spawn((PauseSettingsMenu, menu_wrapper_node()))
+        .spawn((
+            PauseSettingsMenu,
+            menu_wrapper_node(DEFAULT_BACK_COVER_COLOR),
+        ))
         .with_children(|commands| {
             // New world menu node
             commands.spawn(menu_node()).with_children(|commands| {

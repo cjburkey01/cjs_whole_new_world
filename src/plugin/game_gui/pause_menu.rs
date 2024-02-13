@@ -1,10 +1,11 @@
 use super::{
     make_btn, menu_node, menu_title_text_bundle, menu_wrapper_node, update_state_button,
-    update_state_system, MenuState,
+    update_state_system, MenuState, DEFAULT_BACK_COVER_COLOR,
 };
-use crate::{
-    plugin::control::{input::PlyAction, pause::PauseState},
-    FontAssets,
+use crate::plugin::{
+    asset::FontAssets,
+    control::{input::PlyAction, pause::PauseState},
+    voxel_world::world_state::WorldState,
 };
 use bevy::prelude::*;
 use leafwing_input_manager::action_state::ActionState;
@@ -28,6 +29,12 @@ impl Plugin for PauseMenuPlugin {
             Update,
             (
                 update_state_button::<MainMenuButton, _>(MenuState::Paused, MenuState::MainMenu),
+                // Another system for the same button to change the world state
+                // as well as the menu state.
+                update_state_button::<MainMenuButton, _>(
+                    WorldState::WorldLoaded,
+                    WorldState::NotInWorld,
+                ),
                 update_state_button::<PauseSettingsButton, _>(
                     MenuState::Paused,
                     MenuState::PauseSettings,
@@ -80,7 +87,7 @@ struct MainMenuButton;
 fn spawn_pause_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
     // Entire screen node
     commands
-        .spawn((PauseMenu, menu_wrapper_node()))
+        .spawn((PauseMenu, menu_wrapper_node(DEFAULT_BACK_COVER_COLOR)))
         .with_children(|commands| {
             // New world menu node
             commands.spawn(menu_node()).with_children(|commands| {

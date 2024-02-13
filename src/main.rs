@@ -4,46 +4,19 @@ mod io;
 mod plugin;
 mod voxel;
 
-use crate::plugin::{
-    control::controller_2,
-    voxel_world::{beef, chunk_pos_update, region_saver, voxel_material},
-};
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     log::{Level, LogPlugin},
     pbr::CascadeShadowConfigBuilder,
-    prelude::{shape::Cube, *},
+    prelude::*,
 };
-use bevy_asset_loader::prelude::*;
 use bevy_rapier3d::prelude::*;
 use control::{input::PlyAction, PrimaryCamera};
-use game_gui::text_input::TextInputPlugin;
 use leafwing_input_manager::prelude::*;
-use plugin::*;
+use plugin::{control::controller_2, *};
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash, States)]
-pub enum AssetState {
-    #[default]
-    Loading,
-    Ready,
-}
-
-#[allow(unused)]
-#[derive(AssetCollection, Resource)]
-struct FontAssets {
-    #[asset(path = "fonts/FiraCode6.2/FiraCode-Bold.ttf")]
-    fira_code_bold: Handle<Font>,
-    #[asset(path = "fonts/FiraCode6.2/FiraCode-Regular.ttf")]
-    fira_code_regular: Handle<Font>,
-
-    #[asset(path = "fonts/FiraSans/FiraSans-Bold.ttf")]
-    fira_sans_bold: Handle<Font>,
-    #[asset(path = "fonts/FiraSans/FiraSans-Regular.ttf")]
-    fira_sans_regular: Handle<Font>,
-}
 
 fn main() {
     App::new()
@@ -64,30 +37,20 @@ fn main() {
         )
         .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugins(InputManagerPlugin::<PlyAction>::default())
         .add_plugins((
+            asset::CwnwAssetPlugin,
             game_settings::GameSettingsPlugin,
-            InputManagerPlugin::<PlyAction>::default(),
-            TextInputPlugin,
             control::PlyControlPlugin,
-            voxel_material::VoxelMaterialPlugin,
-            chunk_pos_update::ChunkPosPlugin,
             controller_2::Controller2ElectricBoogalooPlugin,
-            beef::BeefPlugin,
             game_gui::GameGuiPlugin,
-            region_saver::RegionSaverPlugin,
+            voxel_world::VoxelWorldPlugin,
         ))
-        .add_state::<AssetState>()
-        .add_loading_state(
-            LoadingState::new(AssetState::Loading)
-                .continue_to_state(AssetState::Ready)
-                .load_collection::<FontAssets>(),
-        )
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {
             brightness: 0.45,
             ..default()
         })
-        .add_systems(Startup, register_dummy_material)
         .run();
 }
 
@@ -133,21 +96,4 @@ fn init_world_system(mut commands: Commands) {
     // Action
 
     // :)
-}
-
-#[derive(Resource)]
-pub struct DummyThicc {
-    pub material: Handle<StandardMaterial>,
-    pub cube: Handle<Mesh>,
-}
-
-fn register_dummy_material(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    commands.insert_resource(DummyThicc {
-        material: materials.add(Color::WHITE.into()),
-        cube: meshes.add(Cube::new(1.0).into()),
-    });
 }

@@ -5,14 +5,17 @@ use crate::{
             pause::PauseState,
             PlyCamRot, PrimaryCamera,
         },
-        voxel_world::beef::{ChunkEntity, ChunkState, DirtyChunk, FixedChunkWorld, LoadedChunk},
+        voxel_world::{
+            beef::{ChunkEntity, ChunkState, DirtyChunk, FixedChunkWorld, LoadedChunk},
+            world_state::WorldState,
+        },
     },
-    voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_SQUARE, CHUNK_WIDTH},
+    voxel::{ChunkPos, InChunkPos, Voxel, CHUNK_WIDTH},
 };
-use bevy::{prelude::*, time::common_conditions::on_timer};
+use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use leafwing_input_manager::{action_state::ActionState, InputManagerBundle};
-use std::{f32::consts::PI, time::Duration};
+use std::f32::consts::PI;
 
 pub struct Controller2ElectricBoogalooPlugin;
 
@@ -27,39 +30,10 @@ impl Plugin for Controller2ElectricBoogalooPlugin {
                     update_character_controller_position,
                 )
                     .chain(),
-                unfreeze_once_ready_system.run_if(on_timer(Duration::from_secs(1))),
             )
-                .run_if(in_state(PauseState::Playing)),
+                .run_if(in_state(PauseState::Playing))
+                .run_if(in_state(WorldState::WorldLoaded)),
         );
-    }
-}
-
-fn unfreeze_once_ready_system(
-    mut commands: Commands,
-    chunk_world: Res<FixedChunkWorld>,
-    mut ply: Query<(Entity, &mut Transform), With<PlayerStartFrozen>>,
-    chunks: Query<(), (With<Collider>, With<ChunkEntity>)>,
-) {
-    if let Some(heightmap) = chunk_world.heightmaps.get(&IVec2::ZERO) {
-        let height = heightmap.heightmap[(CHUNK_SQUARE / 2) as usize] as i32 + 5;
-        if let Ok((ply, mut transform)) = ply.get_single_mut() {
-            // Middle of the chunk
-            transform.translation = UVec3::new(CHUNK_WIDTH, 0, CHUNK_WIDTH).as_vec3() / 2.0;
-            transform.translation.y = height as f32;
-            if let Some(LoadedChunk {
-                state: ChunkState::Rendered,
-                entity,
-                ..
-            }) = chunk_world.chunks.get(&ChunkPos(IVec3::new(
-                0,
-                height.div_euclid(CHUNK_WIDTH as i32),
-                0,
-            ))) {
-                if chunks.get(*entity).is_ok() {
-                    commands.entity(ply).remove::<PlayerStartFrozen>();
-                }
-            }
-        }
     }
 }
 
@@ -154,17 +128,14 @@ fn look_at_voxels(
 fn update_character_controller_position(
     time: Res<Time>,
     phys: Res<RapierConfiguration>,
-    mut query: Query<
-        (
-            &Transform,
-            &mut KinematicCharacterController,
-            Option<&KinematicCharacterControllerOutput>,
-            &mut CharControl2,
-            &Velocity,
-            &ActionState<PlyAction>,
-        ),
-        Without<PlayerStartFrozen>,
-    >,
+    mut query: Query<(
+        &Transform,
+        &mut KinematicCharacterController,
+        Option<&KinematicCharacterControllerOutput>,
+        &mut CharControl2,
+        &Velocity,
+        &ActionState<PlyAction>,
+    )>,
 ) {
     for (transform, mut controller, controller_output, mut ply_cam, vel, ctrl) in query.iter_mut() {
         if ctrl.just_pressed(PlyAction::NoClip) {
@@ -276,9 +247,6 @@ impl Default for CharControl2 {
         }
     }
 }
-
-#[derive(Component)]
-pub struct PlayerStartFrozen;
 
 #[derive(Bundle)]
 pub struct CharacterControllerParentBundle {

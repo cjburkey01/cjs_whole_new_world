@@ -1,4 +1,5 @@
 mod debug_ui;
+mod loading_screen;
 mod main_menu;
 mod new_world;
 mod pause_menu;
@@ -6,22 +7,30 @@ mod pause_settings_menu;
 pub mod text_input;
 
 pub use debug_ui::*;
+pub use loading_screen::*;
 pub use main_menu::*;
 pub use new_world::*;
 pub use pause_menu::*;
 pub use pause_settings_menu::*;
 
-use crate::{plugin::control::pause::PauseState, AssetState, FontAssets};
+use crate::plugin::{
+    asset::{AssetState, FontAssets},
+    control::pause::PauseState,
+    game_gui::text_input::TextInputPlugin,
+};
 use bevy::{ecs::schedule::SystemConfigs, prelude::*};
 use text_input::{TextInputBundle, TextInputInactive};
 
-const BORDER_COLOR_ACTIVE: Color = Color::VIOLET;
-const BORDER_COLOR_INACTIVE: Color = Color::BLACK;
+pub const DEFAULT_BACK_COVER_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.75);
+pub const FULL_BACK_COVER_COLOR: Color = Color::rgb(0.4, 0.2, 0.4);
 
-const BUTTON_BG_INACTIVE: Color = Color::rgb(0.65, 0.65, 0.65);
-const BUTTON_BG_NORMAL: Color = Color::WHITE;
-const BUTTON_BG_HOVER: Color = Color::rgb(0.4, 0.8, 0.5);
-const BUTTON_BG_PRESS: Color = Color::rgb(0.5, 0.6, 0.8);
+pub const BORDER_COLOR_ACTIVE: Color = Color::VIOLET;
+pub const BORDER_COLOR_INACTIVE: Color = Color::BLACK;
+
+pub const BUTTON_BG_INACTIVE: Color = Color::rgb(0.65, 0.65, 0.65);
+pub const BUTTON_BG_NORMAL: Color = Color::WHITE;
+pub const BUTTON_BG_HOVER: Color = Color::rgb(0.4, 0.8, 0.5);
+pub const BUTTON_BG_PRESS: Color = Color::rgb(0.5, 0.6, 0.8);
 
 pub struct GameGuiPlugin;
 
@@ -29,9 +38,11 @@ impl Plugin for GameGuiPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<MenuState>()
             .add_plugins((
+                TextInputPlugin,
                 GameDebugUIPlugin,
                 MainMenuPlugin,
                 NewWorldMenuPlugin,
+                LoadingScreenPlugin,
                 PauseMenuPlugin,
                 PauseSettingsMenuPlugin,
             ))
@@ -79,6 +90,7 @@ pub enum MenuState {
     None,
     MainMenu,
     NewWorldMenu,
+    LoadingScreen,
     PauseSettings,
     Paused,
 }
@@ -153,7 +165,7 @@ fn make_btn(
     });
 }
 
-pub fn menu_wrapper_node() -> NodeBundle {
+pub fn menu_wrapper_node(background_color: Color) -> NodeBundle {
     NodeBundle {
         style: Style {
             width: Val::Percent(100.0),
@@ -163,7 +175,7 @@ pub fn menu_wrapper_node() -> NodeBundle {
             justify_content: JustifyContent::Center,
             ..default()
         },
-        background_color: Color::BLACK.with_a(0.75).into(),
+        background_color: background_color.into(),
         ..default()
     }
 }

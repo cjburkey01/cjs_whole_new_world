@@ -4,7 +4,7 @@ use crate::{
         game_settings::GameSettings,
         voxel_world::{
             chunk_loader::ChunkLoader, region_saver::RegionHandlerRes,
-            voxel_material::ChunkMaterialRes,
+            voxel_material::ChunkMaterialRes, world_info::WorldInfo,
         },
     },
     voxel::{
@@ -45,52 +45,54 @@ pub struct BeefPlugin;
 
 impl Plugin for BeefPlugin {
     fn build(&self, app: &mut App) {
-        app.register_diagnostic(Diagnostic::new(
-            DIAG_GENERATE_REQUIRED,
-            "required_generate_chunks",
-            2,
-        ))
-        .register_diagnostic(Diagnostic::new(
-            DIAG_RENDER_REQUIRED,
-            "required_render_chunks",
-            2,
-        ))
-        .register_diagnostic(Diagnostic::new(
-            DIAG_DELETE_REQUIRED,
-            "required_delete_chunks",
-            2,
-        ))
-        .register_diagnostic(Diagnostic::new(
-            DIAG_GENERATED_CHUNKS,
-            "generated_chunks",
-            2,
-        ))
-        .register_diagnostic(Diagnostic::new(DIAG_RENDERED_CHUNKS, "rendered_chunks", 2))
-        .register_diagnostic(Diagnostic::new(DIAG_DIRTY_CHUNKS, "dirty_chunks", 2))
-        .register_diagnostic(Diagnostic::new(DIAG_VISIBLE_CHUNKS, "visible_chunks", 2))
-        .register_diagnostic(Diagnostic::new(
-            DIAG_NON_CULLED_CHUNKS,
-            "non_culled_chunks",
-            2,
-        ))
-        .add_systems(
-            Update,
-            (
-                check_dirty_edges,
-                update_dirty_chunks_system,
-                update_loader_states,
-                update_diagnostics,
-                start_loading,
-                check_queue,
-            )
-                .chain()
-                .run_if(resource_exists::<FixedChunkWorld>())
-                .run_if(resource_exists::<WorldNoiseSettings>()),
-        )
-        .add_systems(
-            Update,
-            update_loader_radius.run_if(resource_changed::<GameSettings>()),
-        );
+        app
+            // Diagnostics
+            .register_diagnostic(Diagnostic::new(
+                DIAG_GENERATE_REQUIRED,
+                "required_generate_chunks",
+                2,
+            ))
+            .register_diagnostic(Diagnostic::new(
+                DIAG_RENDER_REQUIRED,
+                "required_render_chunks",
+                2,
+            ))
+            .register_diagnostic(Diagnostic::new(
+                DIAG_DELETE_REQUIRED,
+                "required_delete_chunks",
+                2,
+            ))
+            .register_diagnostic(Diagnostic::new(
+                DIAG_GENERATED_CHUNKS,
+                "generated_chunks",
+                2,
+            ))
+            .register_diagnostic(Diagnostic::new(DIAG_RENDERED_CHUNKS, "rendered_chunks", 2))
+            .register_diagnostic(Diagnostic::new(DIAG_DIRTY_CHUNKS, "dirty_chunks", 2))
+            .register_diagnostic(Diagnostic::new(DIAG_VISIBLE_CHUNKS, "visible_chunks", 2))
+            .register_diagnostic(Diagnostic::new(
+                DIAG_NON_CULLED_CHUNKS,
+                "non_culled_chunks",
+                2,
+            ))
+            // Update systems
+            .add_systems(
+                Update,
+                (
+                    (
+                        check_dirty_edges,
+                        update_dirty_chunks_system,
+                        update_loader_states,
+                        update_diagnostics,
+                        start_loading,
+                        check_queue,
+                    )
+                        .chain()
+                        .run_if(resource_exists::<FixedChunkWorld>())
+                        .run_if(resource_exists::<WorldNoiseSettings>()),
+                    update_loader_radius.run_if(resource_changed::<GameSettings>()),
+                ),
+            );
     }
 }
 
@@ -246,6 +248,7 @@ fn update_loader_states(
 fn start_loading(
     mut diagnostics: Diagnostics,
     mut commands: Commands,
+    world_info: Res<WorldInfo>,
     mut chunks: ResMut<FixedChunkWorld>,
     region_handler: Res<RegionHandlerRes>,
     noise: Res<WorldNoiseSettings>,
@@ -258,6 +261,7 @@ fn start_loading(
         chunks.execute_state_changes(
             &mut diagnostics,
             &mut commands,
+            world_info.name(),
             &region_handler,
             &noise,
             state_changes,
@@ -332,28 +336,13 @@ pub(crate) struct LoadedChunk {
 }
 
 #[allow(unused)]
-#[derive(Resource)]
+#[derive(Default, Resource)]
 pub struct FixedChunkWorld {
-    name: String,
-    seed: u32,
     pub(crate) chunks: HashMap<ChunkPos, LoadedChunk>,
     pub(crate) heightmaps: HashMap<IVec2, Chunk2dNoiseValues>,
 }
 
 impl FixedChunkWorld {
-    pub fn new(name: String, seed: u32) -> Self {
-        Self {
-            name,
-            seed,
-            chunks: default(),
-            heightmaps: default(),
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Set the provided chunk's needed state to the one provided, spawning
     /// the chunk entity is one does not already exist.
     pub fn set_needed<'w: 'a, 's: 'a, 'a>(
@@ -507,6 +496,7 @@ impl FixedChunkWorld {
         &mut self,
         diagnostics: &mut Diagnostics,
         commands: &mut Commands,
+        name: &str,
         region_handler_res: &RegionHandlerRes,
         noise: &WorldNoiseSettings,
         changes: Vec<(ChunkPos, Entity, NeededStateChange)>,
@@ -527,7 +517,7 @@ impl FixedChunkWorld {
                     chunk.state = ChunkState::Generating;
                     // Make clones to send to task
                     let noise = noise.clone();
-                    let name = self.name.clone();
+                    let name = name.to_string();
 
                     // Insert the task into the chunk entity
                     let region_handler_inner = Arc::clone(&region_handler_res.0);

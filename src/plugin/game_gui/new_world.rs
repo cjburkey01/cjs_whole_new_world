@@ -1,21 +1,13 @@
 use super::{
     input_text_bundle, label_bundle, make_btn, menu_node, menu_title_text_bundle,
     menu_wrapper_node, update_state_button, was_button_just_pressed, ActiveMenuButton, MenuState,
+    FULL_BACK_COVER_COLOR,
 };
-use crate::{
-    plugin::{
-        control::{
-            controller_2::{CharControl2, PlayerStartFrozen},
-            pause::PauseState,
-        },
-        game_gui::text_input::TextValue,
-        game_settings::GameSettings,
-        voxel_world::{
-            beef::FixedChunkWorld, chunk_loader::ChunkLoader, region_saver::RegionHandlerRes,
-        },
-    },
-    voxel::{world_noise::WorldNoiseSettings, BiomeTable, ChunkPos},
-    FontAssets,
+use crate::plugin::{
+    asset::FontAssets,
+    control::pause::PauseState,
+    game_gui::text_input::TextValue,
+    voxel_world::{world_info::WorldInfo, world_state::WorldState},
 };
 use bevy::prelude::*;
 use stable_hash::fast_stable_hash;
@@ -86,7 +78,7 @@ fn toggle_new_world_button_system(
 fn spawn_new_world_menu_system(mut commands: Commands, font_assets: Res<FontAssets>) {
     // Entire screen node
     commands
-        .spawn((NewWorldMenu, menu_wrapper_node()))
+        .spawn((NewWorldMenu, menu_wrapper_node(FULL_BACK_COVER_COLOR)))
         .with_children(|commands| {
             // New world menu node
             commands.spawn(menu_node()).with_children(|commands| {
@@ -141,12 +133,11 @@ fn despawn_new_world_menu_system(mut commands: Commands, query: Query<Entity, Wi
 
 fn on_pressed_create_button_system(
     mut commands: Commands,
-    game_settings: Res<GameSettings>,
     mut next_menu_state: ResMut<NextState<MenuState>>,
     mut next_pause_state: ResMut<NextState<PauseState>>,
+    mut next_world_state: ResMut<NextState<WorldState>>,
     world_name_text: Query<&TextValue, With<WorldNameValueMarker>>,
     world_seed_text: Query<&TextValue, With<WorldSeedValueMarker>>,
-    ply_entity: Query<Entity, With<CharControl2>>,
 ) {
     let Ok(name) = world_name_text
         .get_single()
@@ -164,20 +155,11 @@ fn on_pressed_create_button_system(
             .unwrap_or("42069"),
     ) as u32;
 
-    next_menu_state.set(MenuState::None);
+    commands.insert_resource(WorldInfo::new(name, seed));
+
+    next_menu_state.set(MenuState::LoadingScreen);
     next_pause_state.set(PauseState::Playing);
+    next_world_state.set(WorldState::LoadingStartArea);
 
-    info!("Creating world \"{name}\" with seed {seed}");
-
-    commands.insert_resource(RegionHandlerRes::default());
-    commands.insert_resource(WorldNoiseSettings::new(seed, BiomeTable::new()));
-    commands.insert_resource(FixedChunkWorld::new(name, seed));
-    if let Ok(entity) = ply_entity.get_single() {
-        commands.entity(entity).insert((
-            Transform::from_xyz(15.5, 10.0, 15.5),
-            ChunkLoader::new(game_settings.load_radius),
-            ChunkPos::default(),
-            PlayerStartFrozen,
-        ));
-    }
+    debug!("updating world state to loading");
 }
