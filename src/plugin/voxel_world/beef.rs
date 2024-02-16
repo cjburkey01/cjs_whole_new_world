@@ -527,7 +527,7 @@ impl FixedChunkWorld {
                         async_pool.spawn(async move {
                             let needed_new_noise = chunk_noise.is_none();
                             let new_noise = chunk_noise.unwrap_or_else(|| {
-                                noise.generate_chunk_2d_noise(IVec2::new(pos.0.x, pos.0.z))
+                                noise.generate_chunk_2d_noise(0, IVec2::new(pos.0.x, pos.0.z))
                             });
 
                             match region_handler_inner.write() {

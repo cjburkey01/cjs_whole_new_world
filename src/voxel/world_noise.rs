@@ -69,23 +69,26 @@ impl WorldNoiseSettings {
 
     pub fn chunk_2d_noise_fn(
         noise_fn: &(impl NoiseFn<f64, 2> + ?Sized),
+        level: u8,
         chunk_pos: IVec2,
     ) -> Vec<f64> {
+        let level_mod = (1 << level as usize) as f64;
+        let chunk_pos = chunk_pos.as_dvec2() * level_mod;
         PlaneMapBuilder::<_, 2>::new(noise_fn)
             .set_size(CHUNK_WIDTH as usize, CHUNK_WIDTH as usize)
-            .set_x_bounds(chunk_pos.x as f64, chunk_pos.x as f64 + 1.0)
-            .set_y_bounds(chunk_pos.y as f64, chunk_pos.y as f64 + 1.0)
+            .set_x_bounds(chunk_pos.x, chunk_pos.x + level_mod)
+            .set_y_bounds(chunk_pos.y, chunk_pos.y + level_mod)
             .build()
             .into_iter()
             .collect::<Vec<_>>()
     }
 
-    pub fn generate_chunk_2d_noise(&self, chunk_pos: IVec2) -> Chunk2dNoiseValues {
+    pub fn generate_chunk_2d_noise(&self, level: u8, chunk_pos: IVec2) -> Chunk2dNoiseValues {
         Chunk2dNoiseValues {
             chunk_pos,
-            heightmap: Self::chunk_2d_noise_fn(self.heightmap_noise.as_ref(), chunk_pos),
-            temperature: Self::chunk_2d_noise_fn(self.temperature_noise.as_ref(), chunk_pos),
-            humidity: Self::chunk_2d_noise_fn(self.humidity_noise.as_ref(), chunk_pos),
+            heightmap: Self::chunk_2d_noise_fn(self.heightmap_noise.as_ref(), level, chunk_pos),
+            temperature: Self::chunk_2d_noise_fn(self.temperature_noise.as_ref(), level, chunk_pos),
+            humidity: Self::chunk_2d_noise_fn(self.humidity_noise.as_ref(), level, chunk_pos),
         }
     }
 
