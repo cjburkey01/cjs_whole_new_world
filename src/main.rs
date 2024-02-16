@@ -1,7 +1,6 @@
 #![feature(const_option)]
 
 mod io;
-mod oct_tree;
 mod plugin;
 mod voxel;
 
