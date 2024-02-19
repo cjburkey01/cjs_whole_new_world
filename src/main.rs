@@ -45,6 +45,7 @@ fn main() {
             controller_2::Controller2ElectricBoogalooPlugin,
             game_gui::GameGuiPlugin,
             voxel_world::VoxelWorldPlugin,
+            oct_tree::OctLodPlugin,
         ))
         .insert_resource(ClearColor(Color::rgb(0.5, 0.5, 0.8)))
         .insert_resource(AmbientLight {

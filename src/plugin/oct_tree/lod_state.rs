@@ -5,3 +5,10 @@ pub enum LodState {
     Loading,
     Ready,
 }
+
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub enum LodNeededState {
+    #[default]
+    Deleted,
+    Render,
+}

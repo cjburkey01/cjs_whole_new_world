@@ -6,8 +6,7 @@ pub struct OctTreeEsque<T> {
 }
 
 // Deriving Default on the struct that contains this tree requires T to
-// implement Default if we derive Default for the tree struct, so we implement
-// it manually.
+// implement Default, so we implement it manually.
 impl<T> Default for OctTreeEsque<T> {
     fn default() -> Self {
         Self { levels: vec![] }
@@ -16,6 +15,10 @@ impl<T> Default for OctTreeEsque<T> {
 
 #[allow(unused)]
 impl<T> OctTreeEsque<T> {
+    pub fn levels(&self) -> &[HashMap<IVec3, T>] {
+        &self.levels
+    }
+
     pub fn level(&self, level: u8) -> Option<&HashMap<IVec3, T>> {
         self.levels.get(level as usize)
     }
