@@ -1,7 +1,6 @@
+use super::{LodChunk, LodNeededState, LodPos, LodState, OctTreeEsque};
 use bevy::{prelude::*, utils::HashSet};
 use itertools::iproduct;
-
-use super::{LodChunk, LodNeededState, LodPos, OctTreeEsque};
 
 #[derive(Debug, Default, States, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum WorldState {
@@ -89,7 +88,7 @@ impl LodWorld {
                 // If this chunk is required, only add the state change if it
                 // needs one.
                 if required_chunks.remove(&pos) {
-                    if chunk.needed_state != LodNeededState::Render {
+                    if chunk.current_state == LodState::None {
                         required_changes.push((pos, LodNeededState::Render))
                     }
                 } else {

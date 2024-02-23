@@ -76,4 +76,8 @@ impl LodPos {
             ]
         })
     }
+
+    pub fn lod0_width(&self) -> u32 {
+        1 << self.level
+    }
 }

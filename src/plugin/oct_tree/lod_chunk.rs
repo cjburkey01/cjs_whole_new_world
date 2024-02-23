@@ -1,10 +1,12 @@
+use super::{LodPos, LodState};
 use crate::voxel::Chunk;
+use bevy::prelude::*;
 
-use super::{LodNeededState, LodState};
-
-#[derive(Default)]
 pub struct LodChunk {
+    pub entity: Entity,
     pub current_state: LodState,
-    pub needed_state: LodNeededState,
     pub lod_data: Option<Chunk>,
 }
+
+#[derive(Component)]
+pub struct LodChunkEntity(pub LodPos);

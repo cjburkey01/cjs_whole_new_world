@@ -5,24 +5,28 @@
 mod lod_chunk;
 mod lod_pos;
 mod lod_state;
+mod lod_task;
 mod lod_world;
 mod oct_base;
-
-use std::time::Duration;
+mod oct_loader;
 
 pub use lod_chunk::*;
 pub use lod_pos::*;
 pub use lod_state::*;
+pub use lod_task::*;
 pub use lod_world::*;
 pub use oct_base::*;
+pub use oct_loader::*;
 
 use bevy::{prelude::*, time::common_conditions::on_timer};
+use std::time::Duration;
 
 pub struct OctLodPlugin;
 
 impl Plugin for OctLodPlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<WorldState>()
+        app.add_plugins(OctLoaderPlugin)
+            .add_state::<WorldState>()
             .add_systems(OnEnter(WorldState::NoExist), delete_world_system)
             .add_systems(
                 OnEnter(WorldState::Initializing),
