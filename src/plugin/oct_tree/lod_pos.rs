@@ -6,6 +6,9 @@ pub struct LodPos {
     pub pos: IVec3,
 }
 
+// TODO: ADD TESTS FOR THESE FUNCTIONS AND SUCH
+//       I HAVEN'T TESTED ANY OF THIS!
+
 #[allow(unused)]
 impl LodPos {
     pub fn to_level(&self, level: u8) -> Self {

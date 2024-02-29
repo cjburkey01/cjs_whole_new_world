@@ -55,6 +55,10 @@ impl InChunkPos {
         }
     }
 
+    pub fn from_urem(pos: UVec3) -> Self {
+        Self(pos % CHUNK_WIDTH)
+    }
+
     pub fn pos(&self) -> UVec3 {
         self.0
     }
