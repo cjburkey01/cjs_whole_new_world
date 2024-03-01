@@ -1,4 +1,5 @@
 use crate::{
+    oct_tree::LodLoader,
     plugin::{
         control::controller_2::CharControl2,
         game_gui::MenuState,
@@ -70,7 +71,8 @@ fn enter_world_loading_state_system(
     if let Ok(entity) = ply_entity.get_single() {
         commands.entity(entity).insert((
             Transform::from_xyz(15.5, 10.0, 15.5),
-            ChunkLoader::new(game_settings.load_radius),
+            //ChunkLoader::new(game_settings.load_radius),
+            LodLoader::new(&[3, 3, 3]),
             ChunkPos::default(),
         ));
     }

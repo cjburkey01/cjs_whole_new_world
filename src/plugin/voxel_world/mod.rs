@@ -1,6 +1,7 @@
 pub mod beef;
 pub mod chunk_loader;
 pub mod chunk_pos_update;
+pub mod lod_chunk_material;
 pub mod region_saver;
 pub mod voxel_material;
 pub mod world_info;
@@ -17,6 +18,7 @@ impl Plugin for VoxelWorldPlugin {
             world_state::WorldStatePlugin,
             chunk_pos_update::ChunkPosPlugin,
             voxel_material::VoxelMaterialPlugin,
+            lod_chunk_material::LodChunkMaterialPlugin,
             region_saver::RegionSaverPlugin,
         ));
     }

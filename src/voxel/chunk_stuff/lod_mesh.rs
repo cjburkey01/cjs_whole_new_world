@@ -6,8 +6,7 @@ use crate::{
     },
 };
 use bevy::{
-    math::{UVec2, Vec3},
-    prelude::Mesh,
+    prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
 use bevy_rapier3d::prelude::Collider;
@@ -15,13 +14,13 @@ use bitvec::prelude::BitVec;
 use itertools::iproduct;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Quad {
-    start: UVec2,
-    end_excl: UVec2,
-    voxel: Voxel,
+struct LodQuad {
+    pub start: UVec2,
+    pub end_excl: UVec2,
+    pub voxel: Voxel,
 }
 
-impl Quad {
+impl LodQuad {
     fn new(pos: UVec2, voxel: Voxel) -> Self {
         Self {
             start: pos,
@@ -51,9 +50,9 @@ impl TmpChunkMesh {
     /// Hack layout:
     ///                       Negative normal?
     ///                              \_/
-    /// U32:(xxxxxx,yy)(yyyy,zzzz)(zz,nnnn,uu)(uuuvvvvv)
-    ///      ^----^ ^------^ ^------^  ^-^ ^---^  ^---^
-    ///        X       Y         Z    Norml  U      V
+    /// U32:(xxxxxx,yy)(yyyy,zzzz)(zz,nnnn,0r)(rrgggbbb)
+    ///      ^----^ ^------^ ^------^  ^-^  ^---^^-^^-^
+    ///        X       Y         Z    Norml   R   G  B
     /// 3x6 bits = 0-32** for each position component
     /// 3 bits for each axis of normal, 1 bit for negative.
     /// 2x5 bits = 0-31 for quad size to determine UV
@@ -61,7 +60,7 @@ impl TmpChunkMesh {
     fn build_hack_verts(
         slice_dir: SliceDirection,
         slice_depth: u32,
-        quad: Quad,
+        quad: LodQuad,
     ) -> [(Vec3, u32); 4] {
         // Positive X cross positive Y is positive Z, which we can
         // consider the the normal, making forward -Z. From this
@@ -74,7 +73,7 @@ impl TmpChunkMesh {
         // looking along negative-Z, so that's a thing to look out for.
         // i guess.
 
-        let Quad {
+        let LodQuad {
             start,
             end_excl: end,
             ..
@@ -86,24 +85,27 @@ impl TmpChunkMesh {
         let high_left_vert = UVec2::new(start.x, end.y);
 
         let size = (end.as_ivec2() - start.as_ivec2()).abs().as_uvec2();
-        let (high_left_uv, low_right_uv) = (UVec2::ZERO, size);
-        let end_uv = UVec2::new(low_right_uv.x, high_left_uv.y);
-        let start_uv = UVec2::new(high_left_uv.x, low_right_uv.y);
 
         let normal = slice_dir.normal().to_ivec3();
         let normal_neg = normal.min_element() < 0;
         let normal = normal.abs().as_uvec3();
         let normal_bits = (normal.x << 2) | (normal.y << 1) | (normal.z);
 
+        let color = Vec3::ONE;
+        let color_r = (color.x.max(0.0).min(1.0) * 8.0) as u32;
+        let color_g = (color.y.max(0.0).min(1.0) * 8.0) as u32;
+        let color_b = (color.z.max(0.0).min(1.0) * 8.0) as u32;
+        let color_bits = (color_r << 6) | (color_g << 3) | (color_b);
+
         iter_to_array(
             [
-                (start_vert, start_uv),
-                (end_vert, end_uv),
-                (low_right_vert, low_right_uv),
-                (high_left_vert, high_left_uv),
+                (start_vert, color_bits),
+                (end_vert, color_bits),
+                (low_right_vert, color_bits),
+                (high_left_vert, color_bits),
             ]
             .into_iter()
-            .map(|(v, uv)| {
+            .map(|(v, color)| {
                 let mut pos = slice_dir.exclusive_transform(slice_depth, v);
 
                 if !slice_dir.right.is_positive() {
@@ -122,15 +124,12 @@ impl TmpChunkMesh {
                 if normal_neg {
                     hack |= 1 << 13;
                 }
-                (
-                    pos.as_vec3(),
-                    hack | (normal_bits << 10) | (uv.x << 5) | uv.y,
-                )
+                (pos.as_vec3(), hack | (normal_bits << 10) | color_bits)
             }),
         )
     }
 
-    fn add_quad(&mut self, slice_dir: SliceDirection, slice_depth: u32, quad: Quad) {
+    fn add_quad(&mut self, slice_dir: SliceDirection, slice_depth: u32, quad: LodQuad) {
         let start_ind = self.hacks.len() as u16;
 
         let verts_hacks = Self::build_hack_verts(slice_dir, slice_depth, quad);
@@ -153,32 +152,22 @@ impl TmpChunkMesh {
         );
     }
 
-    fn build(self) -> Option<(Collider, Mesh)> {
+    fn build(self) -> Option<Mesh> {
         let Self { verts, inds, hacks } = self;
-
-        let mut collider_inds = Vec::with_capacity(inds.len() / 3);
-        for i in 0..collider_inds.capacity() {
-            collider_inds.push([
-                inds[3 * i] as u32,
-                inds[3 * i + 1] as u32,
-                inds[3 * i + 2] as u32,
-            ]);
-        }
 
         match inds.is_empty() {
             true => None,
-            false => Some((
-                Collider::trimesh(verts.clone(), collider_inds),
+            false => Some(
                 Mesh::new(PrimitiveTopology::TriangleList)
                     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, verts)
                     .with_inserted_attribute(ATTRIBUTE_HACK_VERT, hacks)
                     .with_indices(Some(Indices::U16(inds))),
-            )),
+            ),
         }
     }
 }
 
-pub fn generate_mesh(chunk: &Chunk, neighbors: NeighborChunkSlices) -> Option<(Collider, Mesh)> {
+pub fn generate_lod_chunk_mesh(chunk: &Chunk, neighbors: NeighborChunkSlices) -> Option<Mesh> {
     let mut tmp_mesh = TmpChunkMesh::default();
 
     if !chunk.definitely_empty {
@@ -211,7 +200,7 @@ fn mesh_slice(
 
     for y in 0..CHUNK_WIDTH {
         let slice_row_index = CHUNK_WIDTH * y;
-        let mut current_quad: Option<Quad> = None;
+        let mut current_quad: Option<LodQuad> = None;
         for x in 0..CHUNK_WIDTH {
             let slice_index = (slice_row_index + x) as usize;
 
@@ -278,13 +267,13 @@ fn mesh_slice(
                     // If the voxel at this position is not air
                     if voxel != Voxel::Air {
                         // Set current voxel to `Some` with this type
-                        current_quad = Some(Quad::new(UVec2::new(x, y), voxel));
+                        current_quad = Some(LodQuad::new(UVec2::new(x, y), voxel));
                     }
                 }
             } else if voxel != Voxel::Air {
                 // If no current quad and this voxel isn't air, make a new
                 // one.
-                current_quad = Some(Quad::new(UVec2::new(x, y), voxel));
+                current_quad = Some(LodQuad::new(UVec2::new(x, y), voxel));
             }
         }
 
@@ -306,7 +295,7 @@ fn mesh_slice(
 fn emit_quad(
     slice_direction: SliceDirection,
     slice_depth: u32,
-    mut quad: Quad,
+    mut quad: LodQuad,
     voxels: &[Voxel],
     slice_bits: &mut BitVec,
     previous_slice_bits: &Option<BitVec>,
