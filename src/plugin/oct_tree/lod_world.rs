@@ -28,6 +28,9 @@ impl LodWorld {
     /// lod-1 chunk grid.
     /// The provided thicknesses also *include* the previous level lod
     /// chunks, so watch out for that.
+    ///
+    /// Do not edit this function without double checking the tests work :)
+    /// This function outputs the expected values
     pub fn required_levels_for_loader(
         center_lod0_chunk: IVec3,
         level_half_thicks: &[u8],
@@ -104,5 +107,106 @@ impl LodWorld {
         }
 
         required_changes
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::oct_tree::LodNeededState;
+
+    use super::{LodPos, LodWorld};
+    use bevy::{math::IVec3, utils::HashSet};
+
+    // whoop whoop!
+    #[test]
+    fn test_required_levels_for_loader_level_0() {
+        let center_lod0_chunk = IVec3::ZERO;
+        let level_half_thicks = [1];
+        let found = LodWorld::required_levels_for_loader(center_lod0_chunk, &level_half_thicks);
+        let expected = [
+            (0, IVec3::ZERO),
+            (0, IVec3::X),
+            (0, IVec3::Y),
+            (0, IVec3::X + IVec3::Y),
+            (0, IVec3::Z),
+            (0, IVec3::X + IVec3::Z),
+            (0, IVec3::Y + IVec3::Z),
+            (0, IVec3::X + IVec3::Y + IVec3::Z),
+        ]
+        .into_iter()
+        .map(|(level, pos)| LodPos { level, pos })
+        .collect::<HashSet<_>>();
+
+        assert_eq!(expected, found);
+    }
+
+    // hell yeah
+    #[test]
+    fn test_required_levels_for_loader_2_levels() {
+        let center_lod0_chunk = IVec3::ZERO;
+        let level_half_thicks = [1, 1];
+        let found = LodWorld::required_levels_for_loader(center_lod0_chunk, &level_half_thicks);
+        let expected = [
+            (0, IVec3::ZERO),
+            (0, IVec3::X),
+            (0, IVec3::Y),
+            (0, IVec3::X + IVec3::Y),
+            (0, IVec3::Z),
+            (0, IVec3::X + IVec3::Z),
+            (0, IVec3::Y + IVec3::Z),
+            (0, IVec3::X + IVec3::Y + IVec3::Z),
+            (1, IVec3::X),
+            (1, IVec3::Y),
+            (1, IVec3::X + IVec3::Y),
+            (1, IVec3::Z),
+            (1, IVec3::X + IVec3::Z),
+            (1, IVec3::Y + IVec3::Z),
+            (1, IVec3::X + IVec3::Y + IVec3::Z),
+        ]
+        .into_iter()
+        .map(|(level, pos)| LodPos { level, pos })
+        .collect::<HashSet<_>>();
+
+        assert_eq!(expected, found);
+    }
+
+    #[test]
+    fn test_changes_for_required_levels() {
+        // Empty
+        let lod_world = LodWorld::default();
+
+        let required_chunks = [
+            (0, IVec3::ZERO),
+            (0, IVec3::X),
+            (0, IVec3::Y),
+            (0, IVec3::X + IVec3::Y),
+            (0, IVec3::Z),
+            (0, IVec3::X + IVec3::Z),
+            (0, IVec3::Y + IVec3::Z),
+            (0, IVec3::X + IVec3::Y + IVec3::Z),
+        ]
+        .into_iter()
+        .map(|(level, pos)| LodPos { level, pos })
+        .collect::<HashSet<_>>();
+
+        let found_changes = lod_world.changes_for_required_levels(required_chunks);
+        let expected_changes = [
+            (0, IVec3::ZERO, LodNeededState::Render),
+            (0, IVec3::X, LodNeededState::Render),
+            (0, IVec3::Y, LodNeededState::Render),
+            (0, IVec3::X + IVec3::Y, LodNeededState::Render),
+            (0, IVec3::Z, LodNeededState::Render),
+            (0, IVec3::X + IVec3::Z, LodNeededState::Render),
+            (0, IVec3::Y + IVec3::Z, LodNeededState::Render),
+            (0, IVec3::X + IVec3::Y + IVec3::Z, LodNeededState::Render),
+        ]
+        .into_iter()
+        .map(|(level, pos, state)| (LodPos { level, pos }, state))
+        .collect::<Vec<_>>();
+
+        assert_eq!(expected_changes.len(), found_changes.len());
+        for found in &found_changes {
+            assert!(expected_changes.contains(found));
+        }
     }
 }
