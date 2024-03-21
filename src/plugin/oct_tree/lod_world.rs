@@ -35,6 +35,7 @@ impl LodWorld {
         center_lod0_chunk: IVec3,
         level_half_thicks: &[u8],
     ) -> HashSet<LodPos> {
+        // Output
         let mut needed = HashSet::new();
 
         let levels_count = level_half_thicks.len();
@@ -48,6 +49,7 @@ impl LodWorld {
             // Level above this level
             let next_level_center = loader_lod0_pos.to_level(level as u8 + 1);
 
+            // Loop through all chunks within range
             for (x, y, z) in iproduct!(0..half_rad, 0..half_rad, 0..half_rad) {
                 let offset = IVec3::new(x as i32, y as i32, z as i32);
                 let next_level_pos = LodPos {
@@ -110,6 +112,7 @@ impl LodWorld {
     }
 }
 
+// ugly tests but these are expected behaviors
 #[cfg(test)]
 mod test {
     use crate::oct_tree::LodNeededState;

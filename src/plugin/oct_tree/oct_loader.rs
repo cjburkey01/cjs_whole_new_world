@@ -20,8 +20,7 @@ impl Plugin for OctLoaderPlugin {
         app.add_systems(
             Update,
             (
-                check_for_chunk_changes,
-                execute_changes_system,
+                prepare_and_execute_chunk_changes_system,
                 try_spawn_render_tasks_system,
             )
                 .chain()
@@ -49,36 +48,40 @@ impl LodLoader {
 #[derive(Resource)]
 struct ChangesToPerform(Vec<(LodPos, LodNeededState)>);
 
-fn check_for_chunk_changes(
-    lod_world: Res<LodWorld>,
+fn determine_changes(
+    lod_world: &LodWorld,
+    center_lod0: IVec3,
+    loader: &LodLoader,
+) -> Vec<(LodPos, LodNeededState)> {
+    let required_chunks =
+        LodWorld::required_levels_for_loader(center_lod0, &loader.level_half_thicks);
+    let mut changes = lod_world.changes_for_required_levels(required_chunks);
+    changes.sort_by(|(a, _), (b, _)| match a.level.cmp(&b.level) {
+        Ordering::Equal => a
+            .pos
+            .distance_squared(center_lod0)
+            .cmp(&b.pos.distance_squared(center_lod0)),
+        lt_gt => lt_gt,
+    });
+    changes
+}
+
+fn prepare_and_execute_chunk_changes_system(
+    mut commands: Commands,
+    mut lod_world: ResMut<LodWorld>,
     mut changes_to_perform: ResMut<ChangesToPerform>,
     loaders: Query<(&ChunkPos, &LodLoader)>,
 ) {
+    let Ok((ChunkPos(center_lod0_chunk), loader)) = loaders.get_single() else {
+        return;
+    };
+
+    let changes_to_perform = determine_changes(&lod_world, *center_lod0_chunk, loader);
+
     // I think we only need one main chunk loader. Keeping other chunks loaded
     // will not have anything to do with the lod display.
-    if let Ok((ChunkPos(center_lod0_chunk), LodLoader { level_half_thicks })) = loaders.get_single()
-    {
-        let center_lod0 = *center_lod0_chunk;
-        let required_chunks = LodWorld::required_levels_for_loader(center_lod0, level_half_thicks);
-        let mut changes = lod_world.changes_for_required_levels(required_chunks);
-        changes.sort_by(|(a, _), (b, _)| match a.level.cmp(&b.level) {
-            Ordering::Equal => a
-                .pos
-                .distance_squared(center_lod0)
-                .cmp(&b.pos.distance_squared(center_lod0)),
-            lt_gt => lt_gt,
-        });
-        changes_to_perform.0 = changes;
-    }
-}
-
-fn execute_changes_system(
-    mut commands: Commands,
-    mut lod_world: ResMut<LodWorld>,
-    changes_to_perform: Res<ChangesToPerform>,
-) {
-    for (pos, state_change) in &changes_to_perform.0 {
-        match *state_change {
+    for (pos, state_change) in changes_to_perform {
+        match state_change {
             LodNeededState::Deleted => {
                 let lod_chunk = lod_world.tree.level_mut(pos.level).remove(&pos.pos);
                 if let Some(LodChunk { entity, .. }) = lod_chunk {
@@ -94,7 +97,7 @@ fn execute_changes_system(
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(LodChunk {
-                        entity: commands.spawn(LodChunkEntity(*pos)).id(),
+                        entity: commands.spawn(LodChunkEntity(pos)).id(),
                         current_state: LodState::Loading,
                         lod_data: None,
                     });
@@ -145,7 +148,7 @@ fn try_make_lod_chunk(
             (x * lod0_width * lod0_width + y * lod0_width + z) as usize
         };
         fake_chunk.set(
-            InChunkPos::new(UVec3::new(x, y, z)).unwrap(),
+            InChunkPos::new(sample_pos).unwrap(),
             chunks[sample_index].at(sample_chunk_offset_pos),
         );
     }

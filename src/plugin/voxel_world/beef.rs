@@ -13,7 +13,6 @@ use crate::{
     },
 };
 use bevy::{
-    diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
     ecs::system::EntityCommands,
     prelude::*,
     render::primitives::Aabb,
@@ -25,56 +24,12 @@ use futures_lite::future::poll_once;
 use itertools::iproduct;
 use std::{cmp::Ordering, sync::Arc};
 
-pub const DIAG_GENERATE_REQUIRED: DiagnosticId =
-    DiagnosticId::from_u128(20645138512437775160238241943797);
-pub const DIAG_RENDER_REQUIRED: DiagnosticId =
-    DiagnosticId::from_u128(191826711173120112441272453013);
-pub const DIAG_DELETE_REQUIRED: DiagnosticId = DiagnosticId::from_u128(5852159751189146019716253);
-pub const DIAG_GENERATED_CHUNKS: DiagnosticId =
-    DiagnosticId::from_u128(146207248162236223461132471538);
-pub const DIAG_RENDERED_CHUNKS: DiagnosticId =
-    DiagnosticId::from_u128(97107192285412175912551555411386);
-pub const DIAG_VISIBLE_CHUNKS: DiagnosticId = DiagnosticId::from_u128(71159199863847276575201272);
-pub const DIAG_DIRTY_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1071412727699475159529421);
-pub const DIAG_NON_CULLED_CHUNKS: DiagnosticId = DiagnosticId::from_u128(1181181887682219941);
-
-pub const MAX_RENDERS_PER_FRAME: usize = 1;
-
 // Best (Even Ever?) Fucker: my chunk loading solution.
 pub struct BeefPlugin;
 
 impl Plugin for BeefPlugin {
     fn build(&self, app: &mut App) {
         app
-            // Diagnostics
-            .register_diagnostic(Diagnostic::new(
-                DIAG_GENERATE_REQUIRED,
-                "required_generate_chunks",
-                2,
-            ))
-            .register_diagnostic(Diagnostic::new(
-                DIAG_RENDER_REQUIRED,
-                "required_render_chunks",
-                2,
-            ))
-            .register_diagnostic(Diagnostic::new(
-                DIAG_DELETE_REQUIRED,
-                "required_delete_chunks",
-                2,
-            ))
-            .register_diagnostic(Diagnostic::new(
-                DIAG_GENERATED_CHUNKS,
-                "generated_chunks",
-                2,
-            ))
-            .register_diagnostic(Diagnostic::new(DIAG_RENDERED_CHUNKS, "rendered_chunks", 2))
-            .register_diagnostic(Diagnostic::new(DIAG_DIRTY_CHUNKS, "dirty_chunks", 2))
-            .register_diagnostic(Diagnostic::new(DIAG_VISIBLE_CHUNKS, "visible_chunks", 2))
-            .register_diagnostic(Diagnostic::new(
-                DIAG_NON_CULLED_CHUNKS,
-                "non_culled_chunks",
-                2,
-            ))
             // Update systems
             .add_systems(
                 Update,
@@ -83,7 +38,6 @@ impl Plugin for BeefPlugin {
                         check_dirty_edges,
                         update_dirty_chunks_system,
                         update_loader_states,
-                        update_diagnostics,
                         start_loading,
                         check_queue,
                     )
@@ -130,43 +84,6 @@ fn check_dirty_edges(mut commands: Commands, mut chunk_world: ResMut<FixedChunkW
             }
         }
     }
-}
-
-/// Ugly but does stuff
-fn update_diagnostics(
-    mut diagnostics: Diagnostics,
-    chunk_world: Res<FixedChunkWorld>,
-    dirty_chunks: Query<(), With<DirtyChunk>>,
-    visible_mesh_chunks: Query<&ViewVisibility, (With<ChunkEntity>, With<Handle<Mesh>>)>,
-) {
-    let mut generating_count = 0;
-    let mut rendering_count = 0;
-    let mut generated_count = 0;
-    let mut rendered_count = 0;
-    let dirty_count = dirty_chunks.iter().count();
-    let visible_count = visible_mesh_chunks
-        .iter()
-        .map(|v| v.get())
-        .collect::<Vec<_>>();
-    let non_culled_count = visible_count.iter().filter(|b| **b).count();
-
-    for state in chunk_world.chunks.values().map(|chunk| chunk.state) {
-        match state {
-            ChunkState::Empty => {}
-            ChunkState::Generating => generating_count += 1,
-            ChunkState::Generated => generated_count += 1,
-            ChunkState::Rendering => rendering_count += 1,
-            ChunkState::Rendered => rendered_count += 1,
-        }
-    }
-
-    diagnostics.add_measurement(DIAG_GENERATE_REQUIRED, || generating_count as f64);
-    diagnostics.add_measurement(DIAG_RENDER_REQUIRED, || rendering_count as f64);
-    diagnostics.add_measurement(DIAG_GENERATED_CHUNKS, || generated_count as f64);
-    diagnostics.add_measurement(DIAG_RENDERED_CHUNKS, || rendered_count as f64);
-    diagnostics.add_measurement(DIAG_DIRTY_CHUNKS, || dirty_count as f64);
-    diagnostics.add_measurement(DIAG_VISIBLE_CHUNKS, || visible_count.len() as f64);
-    diagnostics.add_measurement(DIAG_NON_CULLED_CHUNKS, || non_culled_count as f64);
 }
 
 /// System to perform immediate updates on chunks currently marked as dirty.
@@ -246,7 +163,6 @@ fn update_loader_states(
 
 /// System to queue loading for necessary chunks.
 fn start_loading(
-    mut diagnostics: Diagnostics,
     mut commands: Commands,
     world_info: Res<WorldInfo>,
     mut chunks: ResMut<FixedChunkWorld>,
@@ -259,7 +175,6 @@ fn start_loading(
         let state_changes = chunks.required_state_changes(*loader_pos, *radius as usize);
         // Start executing the state changes
         chunks.execute_state_changes(
-            &mut diagnostics,
             &mut commands,
             world_info.name(),
             &region_handler,
@@ -494,7 +409,6 @@ impl FixedChunkWorld {
     /// Spawn the tasks to perform the state changes required.
     fn execute_state_changes(
         &mut self,
-        diagnostics: &mut Diagnostics,
         commands: &mut Commands,
         name: &str,
         region_handler_res: &RegionHandlerRes,
@@ -607,8 +521,6 @@ impl FixedChunkWorld {
                 }
             }
         }
-
-        diagnostics.add_measurement(DIAG_DELETE_REQUIRED, || delete_count as f64);
     }
 
     //noinspection DuplicatedCode
@@ -687,7 +599,7 @@ impl FixedChunkWorld {
                     make_mesh_bundle(&mut e, pos, meshes, material, collider, mesh);
 
                     rendered_count += 1;
-                    if rendered_count >= MAX_RENDERS_PER_FRAME {
+                    if rendered_count >= 2 {
                         break 'render_loop;
                     }
                 }

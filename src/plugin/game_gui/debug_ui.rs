@@ -3,11 +3,6 @@ use crate::{
     plugin::{
         asset::{AssetState, FontAssets},
         control::controller_2::{CharControl2, PlayerLookAtRes},
-        voxel_world::beef::{
-            DIAG_DELETE_REQUIRED, DIAG_DIRTY_CHUNKS, DIAG_GENERATED_CHUNKS, DIAG_GENERATE_REQUIRED,
-            DIAG_NON_CULLED_CHUNKS, DIAG_RENDERED_CHUNKS, DIAG_RENDER_REQUIRED,
-            DIAG_VISIBLE_CHUNKS,
-        },
     },
     voxel::{ChunkPos, REGION_WIDTH},
 };
@@ -28,10 +23,7 @@ impl Plugin for GameDebugUIPlugin {
         )
         .add_systems(
             Update,
-            (
-                update_chunk_info_ui_system,
-                update_ui_system.run_if(on_timer(Duration::from_millis(100))),
-            ),
+            update_ui_system.run_if(on_timer(Duration::from_millis(100))),
         );
     }
 }
@@ -543,92 +535,5 @@ fn update_ui_system(
             .as_ref()
             .map(|pla| format!("{:?}", pla.voxel))
             .unwrap_or_else(|| "Nothing".to_string());
-    }
-}
-
-#[allow(clippy::type_complexity)]
-fn update_chunk_info_ui_system(
-    diagnostics: Res<DiagnosticsStore>,
-    mut queries: ParamSet<(
-        Query<&mut Text, With<RequiredGenText>>,
-        Query<&mut Text, With<RequiredRenderText>>,
-        Query<&mut Text, With<RequiredDeleteText>>,
-        Query<&mut Text, With<GeneratedText>>,
-        Query<&mut Text, With<RenderedText>>,
-        Query<&mut Text, With<DirtyText>>,
-        Query<&mut Text, With<VisibleChunksText>>,
-        Query<&mut Text, With<NonCulledChunksText>>,
-    )>,
-) {
-    let required_gen_count = diagnostics
-        .get(DIAG_GENERATE_REQUIRED)
-        .and_then(Diagnostic::value);
-    if let Some(required_gen_count) = required_gen_count {
-        if let Ok(mut text) = queries.p0().get_single_mut() {
-            text.sections[1].value = format!("{}", required_gen_count as u32);
-        }
-    }
-
-    let required_render_count = diagnostics
-        .get(DIAG_RENDER_REQUIRED)
-        .and_then(Diagnostic::value);
-    if let Some(required_render_count) = required_render_count {
-        if let Ok(mut text) = queries.p1().get_single_mut() {
-            text.sections[1].value = format!("{}", required_render_count as u32);
-        }
-    }
-
-    let required_delete_count = diagnostics
-        .get(DIAG_DELETE_REQUIRED)
-        .and_then(Diagnostic::value);
-    if let Some(required_delete_count) = required_delete_count {
-        if let Ok(mut text) = queries.p2().get_single_mut() {
-            text.sections[1].value = format!("{}", required_delete_count as u32);
-        }
-    }
-
-    let generated_count = diagnostics
-        .get(DIAG_GENERATED_CHUNKS)
-        .and_then(Diagnostic::value);
-    if let Some(generated_count) = generated_count {
-        if let Ok(mut text) = queries.p3().get_single_mut() {
-            text.sections[1].value = format!("{}", generated_count as u32);
-        }
-    }
-
-    let rendered_count = diagnostics
-        .get(DIAG_RENDERED_CHUNKS)
-        .and_then(Diagnostic::value);
-    if let Some(rendered_count) = rendered_count {
-        if let Ok(mut text) = queries.p4().get_single_mut() {
-            text.sections[1].value = format!("{}", rendered_count as u32);
-        }
-    }
-
-    let dirty_count = diagnostics
-        .get(DIAG_DIRTY_CHUNKS)
-        .and_then(Diagnostic::value);
-    if let Some(dirty_count) = dirty_count {
-        if let Ok(mut text) = queries.p5().get_single_mut() {
-            text.sections[1].value = format!("{}", dirty_count as u32);
-        }
-    }
-
-    let visible_count = diagnostics
-        .get(DIAG_VISIBLE_CHUNKS)
-        .and_then(Diagnostic::value);
-    if let Some(visible_count) = visible_count {
-        if let Ok(mut text) = queries.p6().get_single_mut() {
-            text.sections[1].value = format!("{}", visible_count as u32);
-        }
-    }
-
-    let non_culled_count = diagnostics
-        .get(DIAG_NON_CULLED_CHUNKS)
-        .and_then(Diagnostic::value);
-    if let Some(non_culled_count) = non_culled_count {
-        if let Ok(mut text) = queries.p7().get_single_mut() {
-            text.sections[1].value = format!("{}", non_culled_count as u32);
-        }
     }
 }
