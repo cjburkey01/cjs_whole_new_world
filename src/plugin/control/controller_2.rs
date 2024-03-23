@@ -24,7 +24,7 @@ impl Plugin for Controller2ElectricBoogalooPlugin {
         app.init_resource::<PlayerLookAtRes>().add_systems(
             Update,
             (
-                (look_at_voxels, modify_block_system).chain(),
+                //(look_at_voxels, modify_block_system).chain(),
                 (
                     update_character_controller_rotations,
                     update_character_controller_position,

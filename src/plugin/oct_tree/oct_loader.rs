@@ -1,11 +1,21 @@
 use super::{
-    LodChunk, LodChunkEntity, LodNeededState, LodPos, LodRenderTask, LodState, LodWorld, WorldState,
+    LodChunk, LodChunkEntity, LodNeededState, LodPos, LodRenderTask, LodRenderTaskReturn, LodState,
+    LodWorld, WorldState,
 };
 use crate::{
-    voxel::{ChunkPos, InChunkPos, RegionHandler, Voxel, VoxelContainer, CHUNK_WIDTH},
+    voxel::{
+        ChunkPos, InChunkPos, NeighborChunkSlices, RegionHandler, Voxel, VoxelContainer,
+        CHUNK_WIDTH,
+    },
     voxel_world::region_saver::RegionHandlerRes,
 };
-use bevy::{prelude::*, time::common_conditions::on_timer, utils::Entry};
+use bevy::{
+    prelude::*,
+    tasks::AsyncComputeTaskPool,
+    time::common_conditions::on_timer,
+    utils::{futures, Entry},
+};
+use futures_lite::future::{block_on, poll_once};
 use itertools::iproduct;
 use std::{
     cmp::Ordering,
@@ -22,9 +32,10 @@ impl Plugin for OctLoaderPlugin {
             (
                 prepare_and_execute_chunk_changes_system,
                 try_spawn_render_tasks_system,
+                check_for_rendered_chunks_system,
             )
                 .chain()
-                .run_if(in_state(WorldState::Ready))
+                .run_if(not(in_state(WorldState::NotInWorld)))
                 .run_if(on_timer(Duration::from_millis(500))),
         );
     }
@@ -44,9 +55,6 @@ impl LodLoader {
 }
 
 // TODO: TESTS?
-
-#[derive(Resource)]
-struct ChangesToPerform(Vec<(LodPos, LodNeededState)>);
 
 fn determine_changes(
     lod_world: &LodWorld,
@@ -69,8 +77,8 @@ fn determine_changes(
 fn prepare_and_execute_chunk_changes_system(
     mut commands: Commands,
     mut lod_world: ResMut<LodWorld>,
-    mut changes_to_perform: ResMut<ChangesToPerform>,
     loaders: Query<(&ChunkPos, &LodLoader)>,
+    region_handler: Res<RegionHandlerRes>,
 ) {
     let Ok((ChunkPos(center_lod0_chunk), loader)) = loaders.get_single() else {
         return;
@@ -78,19 +86,22 @@ fn prepare_and_execute_chunk_changes_system(
 
     let changes_to_perform = determine_changes(&lod_world, *center_lod0_chunk, loader);
 
+    debug!("{} lod chunk changes needed", changes_to_perform.len());
+
     // I think we only need one main chunk loader. Keeping other chunks loaded
     // will not have anything to do with the lod display.
     for (pos, state_change) in changes_to_perform {
+        let level = lod_world.tree.level_mut(pos.level);
         match state_change {
             LodNeededState::Deleted => {
-                let lod_chunk = lod_world.tree.level_mut(pos.level).remove(&pos.pos);
+                let lod_chunk = level.remove(&pos.pos);
                 if let Some(LodChunk { entity, .. }) = lod_chunk {
                     if let Some(mut cmd) = commands.get_entity(entity) {
                         cmd.despawn();
                     }
                 }
             }
-            LodNeededState::Render => match lod_world.tree.level_mut(pos.level).entry(pos.pos) {
+            LodNeededState::Render => match level.entry(pos.pos) {
                 Entry::Occupied(mut entry) => {
                     let chunk = entry.get_mut();
                     chunk.current_state = LodState::Loading;
@@ -113,15 +124,41 @@ fn try_spawn_render_tasks_system(
     lod_world: Res<LodWorld>,
     awaiting_render_chunks: Query<(Entity, &LodChunkEntity), Without<LodRenderTask>>,
 ) {
+    let task_pool = AsyncComputeTaskPool::get();
     for (entity, LodChunkEntity(lod_chunk_pos)) in awaiting_render_chunks.iter() {
-        if let Some(lod_chunk) = try_make_lod_chunk(*lod_chunk_pos, &regions.0) {}
+        if let Some(lod_chunk) = try_make_lod_chunk(*lod_chunk_pos, &regions.0) {
+            // TODO: THIS
+            commands.entity(entity).insert(LodRenderTask(
+                *lod_chunk_pos,
+                task_pool.spawn(async move {
+                    //crate::voxel::generate_mesh(&lod_chunk, NeighborChunkSlices::default())
+                    LodRenderTaskReturn
+                }),
+            ));
+        }
+    }
+}
+
+fn check_for_rendered_chunks_system(
+    mut commands: Commands,
+    mut lod_world: ResMut<LodWorld>,
+    mut chunks: Query<(Entity, &mut LodRenderTask)>,
+) {
+    for (entity, mut task) in chunks.iter_mut() {
+        let lod_pos = task.0;
+        if let Some(_blah) = block_on(poll_once(&mut task.1)) {
+            commands.entity(entity).remove::<LodRenderTask>();
+
+            // TODO: ADD MESH
+        }
+        lod_world.set_state_if_present(lod_pos, LodState::Ready);
     }
 }
 
 /// Tries to create the lod chunk by sampling the lod0 chunks at the necessary
 /// intervals to make a lower-res version of the chunk.
 /// There are a bunch of better ways to do this, so:
-/// TODO: MAKE THIS **WAY** MORE EFFICIENT
+/// TODO: MAKE THIS **WAY** MORE EFFICIENT I THINK?
 ///       IT SHOULDN'T BE THIS EXPENSIVE!
 ///       BUT IT WILL BE RIGHT NOW!
 fn try_make_lod_chunk(

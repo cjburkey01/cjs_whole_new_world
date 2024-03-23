@@ -2,14 +2,6 @@ use super::{LodChunk, LodNeededState, LodPos, LodState, OctTreeEsque};
 use bevy::{prelude::*, utils::HashSet};
 use itertools::iproduct;
 
-#[derive(Debug, Default, States, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum WorldState {
-    #[default]
-    NoExist,
-    Initializing,
-    Ready,
-}
-
 #[derive(Default, Resource)]
 pub struct LodWorld {
     pub tree: OctTreeEsque<LodChunk>,
@@ -109,6 +101,13 @@ impl LodWorld {
         }
 
         required_changes
+    }
+
+    // Don't fuck around with this probably
+    pub fn set_state_if_present(&mut self, pos: LodPos, state: LodState) {
+        if let Some(lod_at) = self.tree.at_mut(pos) {
+            lod_at.current_state = state;
+        }
     }
 }
 
