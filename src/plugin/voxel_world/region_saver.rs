@@ -1,7 +1,7 @@
 use crate::{
     io::write_regions_to_file,
     plugin::voxel_world::{beef::FixedChunkWorld, world_info::WorldInfo},
-    voxel::RegionHandler,
+    voxel::{RegionHandler, RegionMaintainerPlugin},
 };
 use bevy::{
     app::AppExit, prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer,
@@ -15,14 +15,15 @@ pub struct RegionSaverPlugin;
 
 impl Plugin for RegionSaverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            async_ish_save_regions_system
-                .run_if(resource_exists::<FixedChunkWorld>())
-                .run_if(resource_exists::<RegionHandlerRes>())
-                .run_if(on_timer(Duration::from_secs(300))),
-        )
-        .add_systems(Last, save_regions_on_exit_system);
+        app.add_plugins(RegionMaintainerPlugin)
+            // .add_systems(
+            //     Update,
+            //     async_ish_save_regions_system
+            //         .run_if(resource_exists::<FixedChunkWorld>())
+            //         .run_if(resource_exists::<RegionHandlerRes>())
+            //         .run_if(on_timer(Duration::from_secs(300))),
+            // )
+            .add_systems(Last, save_regions_on_exit_system);
     }
 }
 

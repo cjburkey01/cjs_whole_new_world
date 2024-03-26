@@ -3,17 +3,11 @@ use super::{
     LodWorld, WorldState,
 };
 use crate::{
-    voxel::{
-        ChunkPos, InChunkPos, NeighborChunkSlices, RegionHandler, Voxel, VoxelContainer,
-        CHUNK_WIDTH,
-    },
+    voxel::{ChunkPos, InChunkPos, RegionHandler, Voxel, VoxelContainer, CHUNK_WIDTH},
     voxel_world::region_saver::RegionHandlerRes,
 };
 use bevy::{
-    prelude::*,
-    tasks::AsyncComputeTaskPool,
-    time::common_conditions::on_timer,
-    utils::{futures, Entry},
+    prelude::*, tasks::AsyncComputeTaskPool, time::common_conditions::on_timer, utils::Entry,
 };
 use futures_lite::future::{block_on, poll_once};
 use itertools::iproduct;

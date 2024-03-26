@@ -11,6 +11,10 @@ pub struct LodPos {
 
 #[allow(unused)]
 impl LodPos {
+    pub fn new(level: u8, pos: IVec3) -> Self {
+        Self { level, pos }
+    }
+
     pub fn to_level(&self, level: u8) -> Self {
         let diff = level as i16 - self.level as i16;
         let diff_pow = 1 << diff.abs() as usize;

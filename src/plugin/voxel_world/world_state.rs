@@ -4,13 +4,9 @@ use crate::{
     plugin::{
         control::controller_2::CharControl2,
         game_gui::MenuState,
-        voxel_world::{
-            beef::{ChunkEntity, FixedChunkWorld},
-            region_saver::{force_sync_regions_save, RegionHandlerRes},
-            world_info::WorldInfo,
-        },
+        voxel_world::{region_saver::RegionHandlerRes, world_info::WorldInfo},
     },
-    voxel::{world_noise::WorldNoiseSettings, BiomeTable, ChunkPos},
+    voxel::{world_noise::WorldNoiseSettings, BiomeTable, ChunkPos, RegionManager},
 };
 use bevy::prelude::*;
 
@@ -56,6 +52,7 @@ fn enter_world_loading_state_system(
     info!("Creating world \"{name}\" with seed {seed}");
 
     commands.insert_resource(RegionHandlerRes::default());
+    commands.insert_resource(RegionManager::default());
     commands.insert_resource(WorldNoiseSettings::new(seed, BiomeTable::new()));
     commands.insert_resource(LodWorld::default());
     commands.insert_resource(NeededLods::default());
@@ -113,7 +110,7 @@ fn exit_world_loaded_system(
     }
     commands.remove_resource::<WorldNoiseSettings>();
     commands.remove_resource::<LodWorld>();
-    commands.remove_resource::<NeededLods>();
+    commands.remove_resource::<RegionManager>();
     commands.remove_resource::<RegionHandlerRes>();
     commands.remove_resource::<WorldInfo>();
 }
